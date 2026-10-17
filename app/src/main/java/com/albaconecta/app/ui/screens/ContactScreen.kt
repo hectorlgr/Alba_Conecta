@@ -3,6 +3,7 @@ package com.albaconecta.app.ui.screens
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,17 +29,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.albaconecta.app.viewmodel.ContactViewModel
+import com.albaconecta.app.util.CameraUriFactory
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -52,6 +57,28 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
     val submitState by contactViewModel.submitState.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
     var speechError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingPhotoUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var cameraError by remember { mutableStateOf<String?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val capturedUri = pendingPhotoUri
+        pendingPhotoUri = null
+        if (capturedUri != null) {
+            if (success) {
+                photoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+                photoUri = capturedUri
+            } else {
+                CameraUriFactory.delete(context, Uri.parse(capturedUri))
+            }
+        }
+    }
+    LaunchedEffect(submitState.success) {
+        if (submitState.success) {
+            photoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+            photoUri = null
+        }
+    }
     val speechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -127,6 +154,33 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
         speechError?.let {
             Text(it, color = MaterialTheme.colorScheme.error)
         }
+        TextButton(
+            enabled = pendingPhotoUri == null,
+            onClick = {
+                cameraError = null
+                try {
+                    val uri = CameraUriFactory.create(context)
+                    pendingPhotoUri = uri.toString()
+                    cameraLauncher.launch(uri)
+                } catch (_: ActivityNotFoundException) {
+                    pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+                    pendingPhotoUri = null
+                    cameraError = "No hay una aplicación de cámara disponible."
+                } catch (_: Exception) {
+                    pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+                    pendingPhotoUri = null
+                    cameraError = "No se pudo preparar la captura. Inténtalo nuevamente."
+                }
+            }
+        ) { Text("Tomar foto") }
+        if (photoUri != null) {
+            Text("Foto adjunta")
+            TextButton(onClick = {
+                photoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+                photoUri = null
+            }) { Text("Quitar foto") }
+        }
+        cameraError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Represento a una empresa u organización", modifier = Modifier.weight(1f))
             Switch(checked = form.representaEmpresa, onCheckedChange = contactViewModel::updateRepresentaEmpresa)
