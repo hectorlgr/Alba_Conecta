@@ -20,7 +20,9 @@ data class ProfileState(
     val user: UserEntity? = null,
     val errorMessage: String? = null,
     val logoutLoading: Boolean = false,
-    val logoutSuccess: Boolean = false
+    val logoutSuccess: Boolean = false,
+    val deleteLoading: Boolean = false,
+    val deleteSuccess: Boolean = false
 )
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
@@ -62,7 +64,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun logout() {
-        if (_state.value.loading || _state.value.logoutLoading || _state.value.logoutSuccess) return
+        val current = _state.value
+        if (current.loading || current.logoutLoading || current.deleteLoading ||
+            current.logoutSuccess || current.deleteSuccess) return
         _state.update { it.copy(logoutLoading = true, logoutSuccess = false, errorMessage = null) }
         viewModelScope.launch {
             try {
@@ -80,6 +84,48 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
             } finally {
                 _state.update { it.copy(logoutLoading = false) }
+            }
+        }
+    }
+
+    fun deleteAccount() {
+        val current = _state.value
+        if (current.loading || current.logoutLoading || current.deleteLoading ||
+            current.logoutSuccess || current.deleteSuccess) return
+        val user = current.user ?: return
+        _state.update { it.copy(deleteLoading = true, deleteSuccess = false, errorMessage = null) }
+
+        viewModelScope.launch {
+            try {
+                sessionDataStore.clearSession()
+                try {
+                    userRepository.deleteUser(user)
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (deleteException: Exception) {
+                    try {
+                        sessionDataStore.saveSession(user.id)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (_: Exception) {
+                        // Restoration is best-effort; deletion must still be reported as failed.
+                    }
+                    throw deleteException
+                }
+                _state.update {
+                    it.copy(user = null, deleteLoading = false, deleteSuccess = true, errorMessage = null)
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Exception) {
+                _state.update {
+                    it.copy(
+                        deleteSuccess = false,
+                        errorMessage = "No se pudo eliminar la cuenta. Inténtalo nuevamente."
+                    )
+                }
+            } finally {
+                _state.update { it.copy(deleteLoading = false) }
             }
         }
     }

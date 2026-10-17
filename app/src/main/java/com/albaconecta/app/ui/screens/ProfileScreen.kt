@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,6 +18,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,9 +38,13 @@ fun ProfileScreen(
     profileViewModel: ProfileViewModel = viewModel()
 ) {
     val state by profileViewModel.state.collectAsStateWithLifecycle()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val sessionEnded = state.logoutSuccess || state.deleteSuccess
+    val operationInProgress = state.logoutLoading || state.deleteLoading
+    val canDelete = !state.loading && !operationInProgress && !sessionEnded && state.user != null
 
-    LaunchedEffect(state.logoutSuccess) {
-        if (state.logoutSuccess) onLogoutSuccess()
+    LaunchedEffect(sessionEnded) {
+        if (sessionEnded) onLogoutSuccess()
     }
 
     Column(
@@ -63,13 +72,46 @@ fun ProfileScreen(
         }
         Button(
             onClick = profileViewModel::logout,
-            enabled = !state.loading && !state.logoutLoading && !state.logoutSuccess,
+            enabled = !state.loading && !operationInProgress && !sessionEnded,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(if (state.logoutLoading) "Cerrando sesión..." else "Cerrar sesión")
         }
-        TextButton(onClick = onBack, enabled = !state.logoutLoading && !state.logoutSuccess) {
+        Button(
+            onClick = { showDeleteDialog = true },
+            enabled = canDelete,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError
+            )
+        ) {
+            Text(if (state.deleteLoading) "Eliminando cuenta..." else "Eliminar cuenta")
+        }
+        TextButton(onClick = onBack, enabled = !operationInProgress && !sessionEnded) {
             Text("Volver")
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Eliminar cuenta") },
+            text = { Text("Esta acción eliminará la cuenta almacenada en este dispositivo.") },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar") }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = canDelete,
+                    onClick = {
+                        showDeleteDialog = false
+                        profileViewModel.deleteAccount()
+                    }
+                ) {
+                    Text("Eliminar cuenta", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
     }
 }
