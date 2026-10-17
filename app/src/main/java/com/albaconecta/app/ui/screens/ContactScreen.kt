@@ -1,5 +1,11 @@
 package com.albaconecta.app.ui.screens
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,6 +51,22 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
     val errors by contactViewModel.errors.collectAsStateWithLifecycle()
     val submitState by contactViewModel.submitState.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
+    var speechError by remember { mutableStateOf<String?>(null) }
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val transcription = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull { it.isNotBlank() }
+            if (transcription != null) {
+                val currentMessage = contactViewModel.formState.value.mensaje
+                contactViewModel.updateMensaje(
+                    if (currentMessage.isEmpty()) transcription else "$currentMessage $transcription"
+                )
+            }
+        }
+    }
     val formattedDate = remember(form.fechaContacto) {
         form.fechaContacto?.let {
             SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
@@ -90,6 +112,21 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
             isError = errors.mensaje != null,
             supportingText = errors.mensaje?.let { message -> { Text(message) } }
         )
+        TextButton(onClick = {
+            speechError = null
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-CL")
+            }
+            try {
+                speechLauncher.launch(intent)
+            } catch (_: ActivityNotFoundException) {
+                speechError = "El reconocimiento de voz no está disponible en este dispositivo."
+            }
+        }) { Text("Dictar") }
+        speechError?.let {
+            Text(it, color = MaterialTheme.colorScheme.error)
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Represento a una empresa u organización", modifier = Modifier.weight(1f))
             Switch(checked = form.representaEmpresa, onCheckedChange = contactViewModel::updateRepresentaEmpresa)
