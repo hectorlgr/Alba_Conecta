@@ -8,6 +8,11 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -107,9 +112,20 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Colaborar", style = MaterialTheme.typography.headlineMedium)
-        AnimatedVisibility(visible = submitState.success) {
-            Text("Formulario completado correctamente. Confirmación local de demostración.",
-                color = MaterialTheme.colorScheme.primary)
+        AnimatedVisibility(
+            visible = submitState.success,
+            enter = fadeIn(tween(600)) + slideInVertically(tween(600)) { it / 3 },
+            exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it / 3 }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "♥ Gracias",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text("Formulario completado correctamente. Confirmación local de demostración.",
+                    color = MaterialTheme.colorScheme.primary)
+            }
         }
         OutlinedTextField(
             value = form.nombre, onValueChange = contactViewModel::updateNombre,
