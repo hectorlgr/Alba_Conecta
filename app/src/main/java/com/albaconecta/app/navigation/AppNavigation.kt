@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.albaconecta.app.ui.screens.HomeScreen
 import com.albaconecta.app.ui.screens.LoginScreen
+import com.albaconecta.app.ui.screens.ProfileScreen
 import com.albaconecta.app.ui.screens.RegisterScreen
 
 @Composable
@@ -37,7 +38,18 @@ fun AppNavigation(
             )
         }
         composable(Routes.HOME) {
-            HomeScreen()
+            HomeScreen(onProfileClick = { navController.navigate(Routes.PROFILE) })
+        }
+        composable(Routes.PROFILE) {
+            ProfileScreen(
+                onBack = { navController.popBackStack() },
+                onLogoutSuccess = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.HOME) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
     }
 }
