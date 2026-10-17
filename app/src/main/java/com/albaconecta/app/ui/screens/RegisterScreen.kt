@@ -47,6 +47,7 @@ fun RegisterScreen(
 ) {
     val form by registerViewModel.formState.collectAsStateWithLifecycle()
     val errors by registerViewModel.errors.collectAsStateWithLifecycle()
+    val registration by registerViewModel.registrationState.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
     val formattedDate = remember(form.fechaNacimiento) {
         form.fechaNacimiento?.let {
@@ -127,8 +128,18 @@ fun RegisterScreen(
         errors.aceptaTerminos?.let {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
-        Button(onClick = { registerViewModel.validateForm() }, modifier = Modifier.fillMaxWidth()) {
-            Text("Crear cuenta")
+        registration.errorMessage?.let {
+            Text(it, color = MaterialTheme.colorScheme.error)
+        }
+        if (registration.success) {
+            Text("Cuenta creada correctamente.", color = MaterialTheme.colorScheme.primary)
+        }
+        Button(
+            onClick = registerViewModel::register,
+            enabled = !registration.loading && !registration.success,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (registration.loading) "Creando cuenta..." else "Crear cuenta")
         }
         TextButton(onClick = onBackToLogin) { Text("Volver a iniciar sesión") }
     }
