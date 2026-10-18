@@ -12,7 +12,8 @@ object RegisterValidator {
 
     fun validate(
         form: RegisterFormState,
-        referenceTimeMillis: Long = System.currentTimeMillis()
+        referenceTimeMillis: Long = System.currentTimeMillis(),
+        referenceTimeZone: TimeZone = TimeZone.getDefault()
     ): RegisterErrors = RegisterErrors(
         nombre = when {
             form.nombre.isBlank() -> "Ingresa tu nombre"
@@ -39,7 +40,7 @@ object RegisterValidator {
             !telefonoRegex.matches(form.telefono.trim()) -> "Usa 9 dígitos, opcionalmente precedidos por +56"
             else -> null
         },
-        fechaNacimiento = validateBirthDate(form.fechaNacimiento, referenceTimeMillis),
+        fechaNacimiento = validateBirthDate(form.fechaNacimiento, referenceTimeMillis, referenceTimeZone),
         password = when {
             form.password.isEmpty() -> "Ingresa una contraseña"
             form.password.length < 8 -> "La contraseña debe tener al menos 8 caracteres"
@@ -53,11 +54,15 @@ object RegisterValidator {
         aceptaTerminos = if (!form.aceptaTerminos) "Debes aceptar los términos y condiciones" else null
     )
 
-    private fun validateBirthDate(birthDateMillis: Long?, referenceTimeMillis: Long): String? {
+    private fun validateBirthDate(
+        birthDateMillis: Long?,
+        referenceTimeMillis: Long,
+        referenceTimeZone: TimeZone
+    ): String? {
         if (birthDateMillis == null) return "Debes seleccionar tu fecha de nacimiento."
 
-        val today = utcDate(referenceTimeMillis)
-        val birthDate = utcDate(birthDateMillis)
+        val today = calendarDate(referenceTimeMillis, referenceTimeZone)
+        val birthDate = calendarDate(birthDateMillis, TimeZone.getTimeZone("UTC"))
         if (birthDate.after(today)) return "La fecha de nacimiento no puede estar en el futuro."
 
         val adultBirthDateLimit = today.clone() as Calendar
@@ -69,12 +74,14 @@ object RegisterValidator {
         }
     }
 
-    private fun utcDate(timeMillis: Long): Calendar =
-        Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+    private fun calendarDate(timeMillis: Long, timeZone: TimeZone): Calendar {
+        val source = Calendar.getInstance(timeZone).apply {
             timeInMillis = timeMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
         }
+        // Compare only calendar fields in a common zone, not local/UTC instants.
+        return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(source.get(Calendar.YEAR), source.get(Calendar.MONTH), source.get(Calendar.DAY_OF_MONTH))
+        }
+    }
 }

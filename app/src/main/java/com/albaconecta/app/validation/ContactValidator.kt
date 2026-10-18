@@ -11,7 +11,8 @@ object ContactValidator {
 
     fun validate(
         form: ContactFormState,
-        referenceTimeMillis: Long = System.currentTimeMillis()
+        referenceTimeMillis: Long = System.currentTimeMillis(),
+        referenceTimeZone: TimeZone = TimeZone.getDefault()
     ): ContactErrors = ContactErrors(
         nombre = when {
             form.nombre.isBlank() -> "Ingresa tu nombre"
@@ -37,7 +38,8 @@ object ContactValidator {
         },
         fechaContacto = when {
             form.fechaContacto == null -> "Selecciona una fecha de contacto"
-            utcDate(form.fechaContacto).before(utcDate(referenceTimeMillis)) ->
+            calendarDate(form.fechaContacto, TimeZone.getTimeZone("UTC"))
+                .before(calendarDate(referenceTimeMillis, referenceTimeZone)) ->
                 "La fecha de contacto no puede estar en el pasado"
             else -> null
         },
@@ -46,12 +48,14 @@ object ContactValidator {
         } else null
     )
 
-    private fun utcDate(timeMillis: Long): Calendar =
-        Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+    private fun calendarDate(timeMillis: Long, timeZone: TimeZone): Calendar {
+        val source = Calendar.getInstance(timeZone).apply {
             timeInMillis = timeMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
         }
+        // Compare only calendar fields in a common zone, not local/UTC instants.
+        return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(source.get(Calendar.YEAR), source.get(Calendar.MONTH), source.get(Calendar.DAY_OF_MONTH))
+        }
+    }
 }

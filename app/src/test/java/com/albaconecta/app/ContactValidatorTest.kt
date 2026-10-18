@@ -21,7 +21,8 @@ class ContactValidatorTest {
         mensaje = "Quiero colaborar", representaEmpresa = true, cantidadTrabajadores = 10,
         fechaContacto = date(17), autorizaContacto = true
     )
-    private fun validate(form: ContactFormState) = ContactValidator.validate(form, date(17, 18))
+    private fun validate(form: ContactFormState) =
+        ContactValidator.validate(form, date(17, 18), TimeZone.getTimeZone("UTC"))
 
     @Test fun validFormHasNoErrors() {
         assertEquals(ContactErrors(), validate(validForm))
@@ -64,5 +65,22 @@ class ContactValidatorTest {
     }
     @Test fun authorizationIsRequired() {
         assertNotNull(validate(validForm.copy(autorizaContacto = false)).autorizaContacto)
+    }
+
+    @Test fun contactDateUsesLocalTodayNearUtcMidnight() {
+        val instant = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(2026, Calendar.OCTOBER, 17, 0, 30)
+        }.timeInMillis
+        val zone = TimeZone.getTimeZone("GMT-03:00")
+        assertEquals(ContactErrors(), ContactValidator.validate(
+            validForm.copy(fechaContacto = date(16)), instant, zone
+        ))
+        assertEquals("La fecha de contacto no puede estar en el pasado", ContactValidator.validate(
+            validForm.copy(fechaContacto = date(15)), instant, zone
+        ).fechaContacto)
+        assertEquals(ContactErrors(), ContactValidator.validate(
+            validForm.copy(fechaContacto = date(17)), instant, zone
+        ))
     }
 }

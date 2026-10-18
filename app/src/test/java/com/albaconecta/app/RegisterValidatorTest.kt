@@ -14,7 +14,7 @@ class RegisterValidatorTest {
     private val referenceDate = utcDate(2026, 10, 16)
 
     private fun validate(form: RegisterFormState): RegisterErrors =
-        RegisterValidator.validate(form, referenceDate)
+        RegisterValidator.validate(form, referenceDate, TimeZone.getTimeZone("UTC"))
 
     private fun utcDate(year: Int, month: Int, day: Int): Long =
         Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
@@ -90,8 +90,8 @@ class RegisterValidatorTest {
     @Test fun leapDayBirthdayReachesEighteenOnMarchFirstInNonLeapYear() {
         val form = validForm.copy(fechaNacimiento = utcDate(2008, 2, 29))
         assertEquals("Debes ser mayor de edad para registrarte.",
-            RegisterValidator.validate(form, utcDate(2026, 2, 28)).fechaNacimiento)
-        assertNull(RegisterValidator.validate(form, utcDate(2026, 3, 1)).fechaNacimiento)
+             RegisterValidator.validate(form, utcDate(2026, 2, 28), TimeZone.getTimeZone("UTC")).fechaNacimiento)
+        assertNull(RegisterValidator.validate(form, utcDate(2026, 3, 1), TimeZone.getTimeZone("UTC")).fechaNacimiento)
     }
 
     @Test fun referenceTimeWithinUtcDayDoesNotChangeAge() {
@@ -102,6 +102,23 @@ class RegisterValidatorTest {
             set(Calendar.MINUTE, 59)
         }.timeInMillis
         assertEquals(validate(form).fechaNacimiento,
-            RegisterValidator.validate(form, endOfDay).fechaNacimiento)
+             RegisterValidator.validate(form, endOfDay, TimeZone.getTimeZone("UTC")).fechaNacimiento)
+    }
+
+    @Test fun ageUsesLocalDateNearUtcMidnight() {
+        val instant = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(2026, Calendar.OCTOBER, 17, 0, 30)
+        }.timeInMillis
+        val zone = TimeZone.getTimeZone("GMT-03:00")
+        assertEquals("Debes ser mayor de edad para registrarte.", RegisterValidator.validate(
+            validForm.copy(fechaNacimiento = utcDate(2008, 10, 17)), instant, zone
+        ).fechaNacimiento)
+        assertNull(RegisterValidator.validate(
+            validForm.copy(fechaNacimiento = utcDate(2008, 10, 16)), instant, zone
+        ).fechaNacimiento)
+        assertEquals("La fecha de nacimiento no puede estar en el futuro.", RegisterValidator.validate(
+            validForm.copy(fechaNacimiento = utcDate(2026, 10, 17)), instant, zone
+        ).fechaNacimiento)
     }
 }
