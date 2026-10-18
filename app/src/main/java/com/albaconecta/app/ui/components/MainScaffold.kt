@@ -18,7 +18,8 @@ import com.albaconecta.app.navigation.Routes
 fun MainScaffold(
     currentRoute: String,
     onDestinationClick: (String) -> Unit,
-    onProfileClick: () -> Unit,
+    accountActionLabel: String?,
+    onAccountClick: () -> Unit,
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
@@ -26,7 +27,9 @@ fun MainScaffold(
             TopAppBar(
                 title = { Text("Alba Conecta") },
                 actions = {
-                    TextButton(onClick = onProfileClick) { Text("Perfil") }
+                    accountActionLabel?.let { label ->
+                        TextButton(onClick = onAccountClick) { Text(label) }
+                    }
                 }
             )
         },

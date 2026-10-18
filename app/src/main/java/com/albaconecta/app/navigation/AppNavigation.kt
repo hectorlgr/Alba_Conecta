@@ -23,6 +23,8 @@ import com.albaconecta.app.ui.screens.RegisterScreen
 fun AppNavigation(
     navController: NavHostController,
     startDestination: String,
+    sessionLoading: Boolean,
+    isAuthenticated: Boolean,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -35,7 +37,7 @@ fun AppNavigation(
                 onRegisterClick = { navController.navigate(Routes.REGISTER) },
                 onLoginSuccess = {
                     navController.navigate(Routes.HOME) {
-                        popUpTo(Routes.LOGIN) { inclusive = true }
+                        popUpTo(Routes.HOME) { inclusive = true }
                         launchSingleTop = true
                     }
                 }
@@ -58,8 +60,14 @@ fun AppNavigation(
                             }
                         }
                     },
-                    onProfileClick = {
-                        navController.navigate(Routes.PROFILE) { launchSingleTop = true }
+                    accountActionLabel = when {
+                        sessionLoading -> null
+                        isAuthenticated -> "Perfil"
+                        else -> "Iniciar sesión"
+                    },
+                    onAccountClick = {
+                        val destination = if (isAuthenticated) Routes.PROFILE else Routes.LOGIN
+                        navController.navigate(destination) { launchSingleTop = true }
                     }
                 ) { padding ->
                     Box(
@@ -80,7 +88,7 @@ fun AppNavigation(
             ProfileScreen(
                 onBack = { navController.popBackStack() },
                 onLogoutSuccess = {
-                    navController.navigate(Routes.LOGIN) {
+                    navController.navigate(Routes.HOME) {
                         popUpTo(Routes.HOME) { inclusive = true }
                         launchSingleTop = true
                     }
