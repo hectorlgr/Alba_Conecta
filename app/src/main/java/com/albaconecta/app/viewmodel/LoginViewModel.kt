@@ -49,8 +49,23 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     private val _loginState = MutableStateFlow(LoginState())
     val loginState: StateFlow<LoginState> = _loginState.asStateFlow()
 
-    fun updateCorreo(value: String) { _formState.update { it.copy(correo = value) } }
-    fun updatePassword(value: String) { _formState.update { it.copy(password = value) } }
+    fun updateCorreo(value: String) {
+        _formState.update { it.copy(correo = value) }
+        if (_errors.value.correo != null) {
+            val validation = LoginValidator.validate(_formState.value)
+            _errors.update { it.copy(correo = validation.correo) }
+        }
+        _loginState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updatePassword(value: String) {
+        _formState.update { it.copy(password = value) }
+        if (_errors.value.password != null) {
+            val validation = LoginValidator.validate(_formState.value)
+            _errors.update { it.copy(password = validation.password) }
+        }
+        _loginState.update { it.copy(errorMessage = null) }
+    }
 
     fun login() {
         if (_loginState.value.loading || _loginState.value.success) return
