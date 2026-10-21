@@ -1,5 +1,9 @@
 package com.albaconecta.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +15,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -34,6 +37,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.albaconecta.app.ui.components.ErrorStateIcon
+import com.albaconecta.app.ui.components.PulsableButton
+import com.albaconecta.app.ui.components.SuccessIcon
 import com.albaconecta.app.viewmodel.RegisterViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -74,6 +80,7 @@ fun RegisterScreen(
             label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             isError = errors.nombre != null,
+            trailingIcon = { ErrorStateIcon(errors.nombre != null) },
             supportingText = errors.nombre?.let { message -> { Text(message) } }
         )
         OutlinedTextField(
@@ -81,6 +88,7 @@ fun RegisterScreen(
             label = { Text("Apellido") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             isError = errors.apellido != null,
+            trailingIcon = { ErrorStateIcon(errors.apellido != null) },
             supportingText = errors.apellido?.let { message -> { Text(message) } }
         )
         OutlinedTextField(
@@ -88,6 +96,7 @@ fun RegisterScreen(
             label = { Text("RUT") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             isError = errors.rut != null,
+            trailingIcon = { ErrorStateIcon(errors.rut != null) },
             supportingText = errors.rut?.let { message -> { Text(message) } }
         )
         OutlinedTextField(
@@ -95,6 +104,7 @@ fun RegisterScreen(
             label = { Text("Correo electrónico") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             isError = errors.correo != null,
+            trailingIcon = { ErrorStateIcon(errors.correo != null) },
             supportingText = errors.correo?.let { message -> { Text(message) } }
         )
         OutlinedTextField(
@@ -102,12 +112,14 @@ fun RegisterScreen(
             label = { Text("Número de teléfono") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             isError = errors.telefono != null,
+            trailingIcon = { ErrorStateIcon(errors.telefono != null) },
             supportingText = errors.telefono?.let { message -> { Text(message) } }
         )
         OutlinedTextField(
             value = formattedDate, onValueChange = {}, readOnly = true,
             label = { Text("Fecha de nacimiento") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             isError = errors.fechaNacimiento != null,
+            trailingIcon = { ErrorStateIcon(errors.fechaNacimiento != null) },
             supportingText = errors.fechaNacimiento?.let { message -> { Text(message) } }
         )
         TextButton(onClick = { showDatePicker = true }) { Text("Seleccionar fecha") }
@@ -117,6 +129,7 @@ fun RegisterScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = PasswordVisualTransformation(),
             isError = errors.password != null,
+            trailingIcon = { ErrorStateIcon(errors.password != null) },
             supportingText = errors.password?.let { message -> { Text(message) } }
         )
         OutlinedTextField(
@@ -125,6 +138,7 @@ fun RegisterScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = PasswordVisualTransformation(),
             isError = errors.confirmPassword != null,
+            trailingIcon = { ErrorStateIcon(errors.confirmPassword != null) },
             supportingText = errors.confirmPassword?.let { message -> { Text(message) } }
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -137,16 +151,25 @@ fun RegisterScreen(
         registration.errorMessage?.let {
             Text(it, color = MaterialTheme.colorScheme.error)
         }
-        if (registration.success) {
-            Text("Cuenta creada correctamente.", color = MaterialTheme.colorScheme.primary)
-        }
-        Button(
-            onClick = registerViewModel::register,
-            enabled = !registration.loading && !registration.success,
-            modifier = Modifier.fillMaxWidth()
+        // Éxito: icono de check + mensaje, apareciendo con una animación de escala
+        AnimatedVisibility(
+            visible = registration.success,
+            enter = scaleIn(tween(300)) + fadeIn(tween(300))
         ) {
-            Text(if (registration.loading) "Creando cuenta..." else "Crear cuenta")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                SuccessIcon()
+                Text("Cuenta creada correctamente.", color = MaterialTheme.colorScheme.primary)
+            }
         }
+        PulsableButton(
+            onClick = registerViewModel::register,
+            text = if (registration.loading) "Creando cuenta..." else "Crear cuenta",
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !registration.loading && !registration.success
+        )
         TextButton(onClick = onBackToLogin) { Text("Volver a iniciar sesión") }
     }
     }

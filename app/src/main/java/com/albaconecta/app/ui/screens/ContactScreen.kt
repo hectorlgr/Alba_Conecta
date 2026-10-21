@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -56,8 +55,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import com.albaconecta.app.ui.components.AnimatedEntrance
+import com.albaconecta.app.ui.components.ErrorStateIcon
+import com.albaconecta.app.ui.components.PulsableButton
 import com.albaconecta.app.viewmodel.ContactViewModel
 import com.albaconecta.app.util.CameraUriFactory
 import java.text.SimpleDateFormat
@@ -257,132 +257,154 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
         modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Colaborar", style = MaterialTheme.typography.headlineMedium)
-        AnimatedVisibility(
-            visible = submitState.success,
-            enter = fadeIn(tween(600)) + slideInVertically(tween(600)) { it / 3 },
-            exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it / 3 }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "♥ Gracias",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
+        AnimatedEntrance {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Colaborar", style = MaterialTheme.typography.headlineMedium)
+                AnimatedVisibility(
+                    visible = submitState.success,
+                    enter = fadeIn(tween(600)) + slideInVertically(tween(600)) { it / 3 },
+                    exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it / 3 }
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "♥ Gracias",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text("Formulario completado correctamente. Confirmación local de demostración.",
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+        AnimatedEntrance(delayMillis = 80) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = form.nombre, onValueChange = contactViewModel::updateNombre,
+                    label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    isError = errors.nombre != null,
+                    trailingIcon = { ErrorStateIcon(errors.nombre != null) },
+                    supportingText = errors.nombre?.let { message -> { Text(message) } }
                 )
-                Text("Formulario completado correctamente. Confirmación local de demostración.",
-                    color = MaterialTheme.colorScheme.primary)
+                OutlinedTextField(
+                    value = form.correo, onValueChange = contactViewModel::updateCorreo,
+                    label = { Text("Correo electrónico") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    isError = errors.correo != null,
+                    trailingIcon = { ErrorStateIcon(errors.correo != null) },
+                    supportingText = errors.correo?.let { message -> { Text(message) } }
+                )
+                OutlinedTextField(
+                    value = form.telefono, onValueChange = contactViewModel::updateTelefono,
+                    label = { Text("Teléfono") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    isError = errors.telefono != null,
+                    trailingIcon = { ErrorStateIcon(errors.telefono != null) },
+                    supportingText = errors.telefono?.let { message -> { Text(message) } }
+                )
+                OutlinedTextField(
+                    value = form.mensaje, onValueChange = contactViewModel::updateMensaje,
+                    label = { Text("Mensaje") }, modifier = Modifier.fillMaxWidth(), minLines = 4,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    isError = errors.mensaje != null,
+                    trailingIcon = { ErrorStateIcon(errors.mensaje != null) },
+                    supportingText = errors.mensaje?.let { message -> { Text(message) } }
+                )
             }
         }
-        OutlinedTextField(
-            value = form.nombre, onValueChange = contactViewModel::updateNombre,
-            label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-            isError = errors.nombre != null,
-            supportingText = errors.nombre?.let { message -> { Text(message) } }
-        )
-        OutlinedTextField(
-            value = form.correo, onValueChange = contactViewModel::updateCorreo,
-            label = { Text("Correo electrónico") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            isError = errors.correo != null,
-            supportingText = errors.correo?.let { message -> { Text(message) } }
-        )
-        OutlinedTextField(
-            value = form.telefono, onValueChange = contactViewModel::updateTelefono,
-            label = { Text("Teléfono") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            isError = errors.telefono != null,
-            supportingText = errors.telefono?.let { message -> { Text(message) } }
-        )
-        OutlinedTextField(
-            value = form.mensaje, onValueChange = contactViewModel::updateMensaje,
-            label = { Text("Mensaje") }, modifier = Modifier.fillMaxWidth(), minLines = 4,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-            isError = errors.mensaje != null,
-            supportingText = errors.mensaje?.let { message -> { Text(message) } }
-        )
-        TextButton(
-            enabled = !speechActive && !audioPermissionPending,
-            onClick = {
-                speechError = null
-                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                    startDictation()
-                } else {
-                    audioPermissionPending = true
-                    try {
-                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    } catch (_: Exception) {
-                        audioPermissionPending = false
-                        speechError = "No se pudo solicitar el permiso de micrófono. Puedes revisarlo en Ajustes."
+        AnimatedEntrance(delayMillis = 160) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(onClick = {
+                    speechError = null
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-CL")
                     }
+                    try {
+                        speechLauncher.launch(intent)
+                    } catch (_: ActivityNotFoundException) {
+                        speechError = "El reconocimiento de voz no está disponible en este dispositivo."
+                    }
+                }) { Text("Dictar") }
+                speechError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+                TextButton(
+                    enabled = pendingPhotoUri == null,
+                    onClick = {
+                        cameraError = null
+                        try {
+                            val uri = CameraUriFactory.create(context)
+                            pendingPhotoUri = uri.toString()
+                            cameraLauncher.launch(uri)
+                        } catch (_: ActivityNotFoundException) {
+                            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+                            pendingPhotoUri = null
+                            cameraError = "No hay una aplicación de cámara disponible."
+                        } catch (_: Exception) {
+                            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+                            pendingPhotoUri = null
+                            cameraError = "No se pudo preparar la captura. Inténtalo nuevamente."
+                        }
+                    }
+                ) { Text("Tomar foto") }
+                if (photoUri != null) {
+                    Text("Foto adjunta")
+                    TextButton(onClick = {
+                        photoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+                        photoUri = null
+                    }) { Text("Quitar foto") }
+                }
+                cameraError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        }
+        AnimatedEntrance(delayMillis = 240) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Represento a una empresa u organización", modifier = Modifier.weight(1f))
+                    Switch(checked = form.representaEmpresa, onCheckedChange = contactViewModel::updateRepresentaEmpresa)
+                }
+                AnimatedVisibility(visible = form.representaEmpresa) {
+                    OutlinedTextField(
+                        value = form.cantidadTrabajadores?.toString().orEmpty(),
+                        onValueChange = contactViewModel::updateCantidadTrabajadores,
+                        label = { Text("Cantidad de trabajadores") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = errors.cantidadTrabajadores != null,
+                        trailingIcon = { ErrorStateIcon(errors.cantidadTrabajadores != null) },
+                        supportingText = errors.cantidadTrabajadores?.let { message -> { Text(message) } }
+                    )
                 }
             }
-        ) { Text("Dictar") }
-        if (speechActive) {
-            Text(if (speechProcessing) "Procesando dictado..." else "Escuchando...")
-            TextButton(onClick = {
-                releaseSpeech()
-                speechError = null
-            }) { Text("Cancelar dictado") }
         }
-        speechError?.let {
-            Text(it, color = MaterialTheme.colorScheme.error)
-        }
-        TextButton(
-            enabled = pendingPhotoUri == null && !cameraPermissionPending,
-            onClick = {
-                cameraError = null
-                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                    launchCamera()
-                } else {
-                    cameraPermissionPending = true
-                    try {
-                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                    } catch (_: Exception) {
-                        cameraPermissionPending = false
-                        cameraError = "No se pudo solicitar el permiso de cámara. Puedes revisarlo en Ajustes."
-                    }
-                }
+        AnimatedEntrance(delayMillis = 300) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = formattedDate, onValueChange = {}, readOnly = true,
+                    label = { Text("Fecha preferida de contacto") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    isError = errors.fechaContacto != null,
+                    trailingIcon = { ErrorStateIcon(errors.fechaContacto != null) },
+                    supportingText = errors.fechaContacto?.let { message -> { Text(message) } }
+                )
+                TextButton(onClick = { showDatePicker = true }) { Text("Seleccionar fecha") }
             }
-        ) { Text("Tomar foto") }
-        if (photoUri != null) {
-            Text("Foto adjunta")
-            TextButton(onClick = {
-                photoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-                photoUri = null
-            }) { Text("Quitar foto") }
         }
-        cameraError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Represento a una empresa u organización", modifier = Modifier.weight(1f))
-            Switch(checked = form.representaEmpresa, onCheckedChange = contactViewModel::updateRepresentaEmpresa)
-        }
-        AnimatedVisibility(visible = form.representaEmpresa) {
-            OutlinedTextField(
-                value = form.cantidadTrabajadores?.toString().orEmpty(),
-                onValueChange = contactViewModel::updateCantidadTrabajadores,
-                label = { Text("Cantidad de trabajadores") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = errors.cantidadTrabajadores != null,
-                supportingText = errors.cantidadTrabajadores?.let { message -> { Text(message) } }
-            )
-        }
-        OutlinedTextField(
-            value = formattedDate, onValueChange = {}, readOnly = true,
-            label = { Text("Fecha preferida de contacto") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            isError = errors.fechaContacto != null,
-            supportingText = errors.fechaContacto?.let { message -> { Text(message) } }
-        )
-        TextButton(onClick = { showDatePicker = true }) { Text("Seleccionar fecha") }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = form.autorizaContacto, onCheckedChange = contactViewModel::updateAutorizaContacto)
-            Text("Autorizo que me contacten respecto de esta solicitud.")
-        }
-        errors.autorizaContacto?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        }
-        Button(onClick = contactViewModel::submit, modifier = Modifier.fillMaxWidth()) {
-            Text("Enviar solicitud")
+        AnimatedEntrance(delayMillis = 360) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = form.autorizaContacto, onCheckedChange = contactViewModel::updateAutorizaContacto)
+                    Text("Autorizo que me contacten respecto de esta solicitud.")
+                }
+                errors.autorizaContacto?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                PulsableButton(
+                    onClick = contactViewModel::submit,
+                    text = "Enviar solicitud",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 

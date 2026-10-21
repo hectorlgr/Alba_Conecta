@@ -1,5 +1,10 @@
 package com.albaconecta.app.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -30,7 +35,13 @@ fun AppNavigation(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier
+        modifier = modifier,
+        // Transiciones entre pantallas: fundido + deslizamiento horizontal sutil
+        enterTransition = { fadeIn(tween(250)) + slideInHorizontally(tween(250)) { it / 8 } },
+        exitTransition = { fadeOut(tween(200)) },
+        // Al retroceder (botón "atrás"), la animación se reproduce en sentido inverso
+        popEnterTransition = { fadeIn(tween(250)) + slideInHorizontally(tween(250)) { -it / 8 } },
+        popExitTransition = { fadeOut(tween(200)) + slideOutHorizontally(tween(200)) { it / 8 } }
     ) {
         composable(Routes.LOGIN) {
             LoginScreen(
