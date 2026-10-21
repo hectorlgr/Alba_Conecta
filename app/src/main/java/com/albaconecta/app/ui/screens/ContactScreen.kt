@@ -1,11 +1,14 @@
 package com.albaconecta.app.ui.screens
 
+import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.LocalActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -47,6 +50,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.albaconecta.app.viewmodel.ContactViewModel
 import com.albaconecta.app.util.CameraUriFactory
 import java.text.SimpleDateFormat
@@ -63,9 +68,11 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
     var showDatePicker by remember { mutableStateOf(false) }
     var speechError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val activity = LocalActivity.current
     var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPhotoUri by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraError by remember { mutableStateOf<String?>(null) }
+    var cameraPermissionPending by rememberSaveable { mutableStateOf(false) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         val capturedUri = pendingPhotoUri
         pendingPhotoUri = null
@@ -75,6 +82,47 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                 photoUri = capturedUri
             } else {
                 CameraUriFactory.delete(context, Uri.parse(capturedUri))
+            }
+        }
+    }
+    fun launchCamera() {
+        if (pendingPhotoUri != null) return
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            cameraError = "Se necesita permiso de cámara para tomar una foto. Puedes habilitarlo desde Ajustes."
+            return
+        }
+        cameraError = null
+        try {
+            val uri = CameraUriFactory.create(context)
+            pendingPhotoUri = uri.toString()
+            cameraLauncher.launch(uri)
+        } catch (_: ActivityNotFoundException) {
+            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+            pendingPhotoUri = null
+            cameraError = "No hay una aplicación de cámara disponible."
+        } catch (_: SecurityException) {
+            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+            pendingPhotoUri = null
+            cameraError = "No se pudo acceder a la cámara. Revisa el permiso de cámara en Ajustes."
+        } catch (_: Exception) {
+            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
+            pendingPhotoUri = null
+            cameraError = "No se pudo preparar la captura. Inténtalo nuevamente."
+        }
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        cameraPermissionPending = false
+        if (granted) {
+            launchCamera()
+        } else {
+            cameraError = if (activity != null && ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity, Manifest.permission.CAMERA
+                )) {
+                "Permiso de cámara denegado. Puedes volver a intentarlo con Tomar foto."
+            } else {
+                "Permiso de cámara denegado. Puedes habilitarlo desde Ajustes de la aplicación."
             }
         }
     }
@@ -171,21 +219,19 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
             Text(it, color = MaterialTheme.colorScheme.error)
         }
         TextButton(
-            enabled = pendingPhotoUri == null,
+            enabled = pendingPhotoUri == null && !cameraPermissionPending,
             onClick = {
                 cameraError = null
-                try {
-                    val uri = CameraUriFactory.create(context)
-                    pendingPhotoUri = uri.toString()
-                    cameraLauncher.launch(uri)
-                } catch (_: ActivityNotFoundException) {
-                    pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-                    pendingPhotoUri = null
-                    cameraError = "No hay una aplicación de cámara disponible."
-                } catch (_: Exception) {
-                    pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-                    pendingPhotoUri = null
-                    cameraError = "No se pudo preparar la captura. Inténtalo nuevamente."
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    launchCamera()
+                } else {
+                    cameraPermissionPending = true
+                    try {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    } catch (_: Exception) {
+                        cameraPermissionPending = false
+                        cameraError = "No se pudo solicitar el permiso de cámara. Puedes revisarlo en Ajustes."
+                    }
                 }
             }
         ) { Text("Tomar foto") }
