@@ -65,6 +65,9 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
@@ -315,40 +318,72 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
         }
         AnimatedEntrance(delayMillis = 160) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(onClick = {
-                    speechError = null
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-CL")
-                    }
-                    try {
-                        speechLauncher.launch(intent)
-                    } catch (_: ActivityNotFoundException) {
-                        speechError = "El reconocimiento de voz no está disponible en este dispositivo."
-                    }
-                }) { Text("Dictar") }
-                speechError?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                }
                 TextButton(
-                    enabled = pendingPhotoUri == null,
+                    enabled = !speechActive && !audioPermissionPending,
                     onClick = {
-                        cameraError = null
-                        try {
-                            val uri = CameraUriFactory.create(context)
-                            pendingPhotoUri = uri.toString()
-                            cameraLauncher.launch(uri)
-                        } catch (_: ActivityNotFoundException) {
-                            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-                            pendingPhotoUri = null
-                            cameraError = "No hay una aplicación de cámara disponible."
-                        } catch (_: Exception) {
-                            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-                            pendingPhotoUri = null
-                            cameraError = "No se pudo preparar la captura. Inténtalo nuevamente."
+                        speechError = null
+
+                        if (
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            startDictation()
+                        } else {
+                            audioPermissionPending = true
+                            audioPermissionLauncher.launch(
+                                Manifest.permission.RECORD_AUDIO
+                            )
                         }
                     }
-                ) { Text("Tomar foto") }
+                ) {
+                    Text("Dictar")
+                }
+
+                if (speechActive) {
+                    Text(
+                        if (speechProcessing) {
+                            "Procesando dictado..."
+                        } else {
+                            "Escuchando..."
+                        }
+                    )
+
+                    TextButton(onClick = { releaseSpeech() }) {
+                        Text("Cancelar dictado")
+                    }
+                }
+
+                speechError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                TextButton(
+                    enabled = pendingPhotoUri == null &&
+                            !cameraPermissionPending,
+                    onClick = {
+                        cameraError = null
+
+                        if (
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            launchCamera()
+                        } else {
+                            cameraPermissionPending = true
+                            cameraPermissionLauncher.launch(
+                                Manifest.permission.CAMERA
+                            )
+                        }
+                    }
+                ) {
+                    Text("Tomar foto")
+                }
                 if (photoUri != null) {
                     Text("Foto adjunta")
                     TextButton(onClick = {
