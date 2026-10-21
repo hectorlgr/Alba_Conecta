@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -24,6 +23,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.albaconecta.app.ui.components.ErrorStateIcon
+import com.albaconecta.app.ui.components.PulsableButton
 import com.albaconecta.app.viewmodel.LoginViewModel
 
 @Composable
@@ -51,6 +52,7 @@ fun LoginScreen(
             label = { Text("Correo electrónico") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             isError = errors.correo != null,
+            trailingIcon = { ErrorStateIcon(errors.correo != null) },
             supportingText = errors.correo?.let { message -> { Text(message) } }
         )
         OutlinedTextField(
@@ -59,18 +61,18 @@ fun LoginScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = PasswordVisualTransformation(),
             isError = errors.password != null,
+            trailingIcon = { ErrorStateIcon(errors.password != null) },
             supportingText = errors.password?.let { message -> { Text(message) } }
         )
         loginState.errorMessage?.let {
             Text(it, color = MaterialTheme.colorScheme.error)
         }
-        Button(
+        PulsableButton(
             onClick = loginViewModel::login,
-            enabled = !loginState.loading && !loginState.success,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (loginState.loading) "Iniciando sesión..." else "Iniciar sesión")
-        }
+            text = if (loginState.loading) "Iniciando sesión..." else "Iniciar sesión",
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !loginState.loading && !loginState.success
+        )
         TextButton(onClick = onRegisterClick, enabled = !loginState.loading && !loginState.success) {
             Text("Crear cuenta")
         }
