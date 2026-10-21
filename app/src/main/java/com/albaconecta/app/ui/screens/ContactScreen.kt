@@ -1,12 +1,14 @@
 package com.albaconecta.app.ui.screens
 
 import android.Manifest
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Bundle
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.LocalActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +52,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -132,19 +138,111 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
             photoUri = null
         }
     }
-    val speechLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val transcription = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull { it.isNotBlank() }
-            if (transcription != null) {
-                val currentMessage = contactViewModel.formState.value.mensaje
-                contactViewModel.updateMensaje(
-                    if (currentMessage.isEmpty()) transcription else "$currentMessage $transcription"
-                )
+    var speechRecognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+    var speechActive by remember { mutableStateOf(false) }
+    var speechProcessing by remember { mutableStateOf(false) }
+    var audioPermissionPending by rememberSaveable { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    fun releaseSpeech() {
+        val recognizer = speechRecognizer
+        // Ignore any callbacks arriving after cancellation or from a previous session.
+        speechRecognizer = null
+        speechActive = false
+        speechProcessing = false
+        if (recognizer != null) {
+            runCatching { recognizer.cancel() }
+            runCatching { recognizer.destroy() }
+        }
+    }
+
+    fun startDictation() {
+        if (speechActive) return
+        speechError = null
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            speechError = "Se necesita permiso de micrófono para dictar. Puedes habilitarlo desde Ajustes."
+            return
+        }
+        try {
+            if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                speechError = "El reconocimiento de voz no está disponible en este dispositivo."
+                return
             }
+            val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            speechRecognizer = recognizer
+            speechActive = true
+            speechProcessing = false
+            recognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) = Unit
+                override fun onBeginningOfSpeech() = Unit
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+                override fun onPartialResults(partialResults: Bundle?) = Unit
+                override fun onEvent(eventType: Int, params: Bundle?) = Unit
+
+                override fun onEndOfSpeech() {
+                    if (speechRecognizer === recognizer) speechProcessing = true
+                }
+
+                override fun onError(error: Int) {
+                    if (speechRecognizer !== recognizer) return
+                    releaseSpeech()
+                    speechError = when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+                            "No se reconocieron palabras. Puedes volver a intentarlo."
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
+                            "No se pudo acceder al micrófono. Revisa el permiso en Ajustes."
+                        else -> "No se pudo completar el dictado. Inténtalo nuevamente."
+                    }
+                }
+
+                override fun onResults(results: Bundle?) {
+                    if (speechRecognizer !== recognizer) return
+                    val transcription = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull { it.isNotBlank() }
+                    releaseSpeech()
+                    if (transcription != null) {
+                        val currentMessage = contactViewModel.formState.value.mensaje
+                        contactViewModel.updateMensaje(
+                            if (currentMessage.isEmpty()) transcription else "$currentMessage $transcription"
+                        )
+                    } else {
+                        speechError = "No se reconocieron palabras. Puedes volver a intentarlo."
+                    }
+                }
+            })
+            recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-CL")
+            })
+        } catch (_: SecurityException) {
+            releaseSpeech()
+            speechError = "No se pudo acceder al micrófono. Revisa el permiso en Ajustes."
+        } catch (_: Exception) {
+            releaseSpeech()
+            speechError = "No se pudo iniciar el dictado. Inténtalo nuevamente."
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        audioPermissionPending = false
+        if (granted) {
+            startDictation()
+        } else {
+            speechError = "Permiso de micrófono denegado. Puedes volver a intentarlo o habilitarlo desde Ajustes."
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) releaseSpeech()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            releaseSpeech()
         }
     }
     val formattedDate = remember(form.fechaContacto) {
@@ -203,18 +301,30 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
             isError = errors.mensaje != null,
             supportingText = errors.mensaje?.let { message -> { Text(message) } }
         )
-        TextButton(onClick = {
-            speechError = null
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-CL")
+        TextButton(
+            enabled = !speechActive && !audioPermissionPending,
+            onClick = {
+                speechError = null
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    startDictation()
+                } else {
+                    audioPermissionPending = true
+                    try {
+                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    } catch (_: Exception) {
+                        audioPermissionPending = false
+                        speechError = "No se pudo solicitar el permiso de micrófono. Puedes revisarlo en Ajustes."
+                    }
+                }
             }
-            try {
-                speechLauncher.launch(intent)
-            } catch (_: ActivityNotFoundException) {
-                speechError = "El reconocimiento de voz no está disponible en este dispositivo."
-            }
-        }) { Text("Dictar") }
+        ) { Text("Dictar") }
+        if (speechActive) {
+            Text(if (speechProcessing) "Procesando dictado..." else "Escuchando...")
+            TextButton(onClick = {
+                releaseSpeech()
+                speechError = null
+            }) { Text("Cancelar dictado") }
+        }
         speechError?.let {
             Text(it, color = MaterialTheme.colorScheme.error)
         }
