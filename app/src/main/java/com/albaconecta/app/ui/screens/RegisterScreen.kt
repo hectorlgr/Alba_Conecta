@@ -18,6 +18,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -57,6 +58,11 @@ fun RegisterScreen(
         }.orEmpty()
     }
 
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
+    ) {
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding()
             .verticalScroll(rememberScrollState()).padding(16.dp),
@@ -142,6 +148,7 @@ fun RegisterScreen(
             Text(if (registration.loading) "Creando cuenta..." else "Crear cuenta")
         }
         TextButton(onClick = onBackToLogin) { Text("Volver a iniciar sesión") }
+    }
     }
 
     if (showDatePicker) {

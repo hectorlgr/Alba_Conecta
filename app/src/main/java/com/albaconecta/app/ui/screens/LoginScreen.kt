@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,6 +41,11 @@ fun LoginScreen(
         if (loginState.success) onLoginSuccess()
     }
 
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
+    ) {
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding()
             .verticalScroll(rememberScrollState()).padding(16.dp),
@@ -74,5 +80,6 @@ fun LoginScreen(
         TextButton(onClick = onRegisterClick, enabled = !loginState.loading && !loginState.success) {
             Text("Crear cuenta")
         }
+    }
     }
 }

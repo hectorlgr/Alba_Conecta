@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +48,11 @@ fun ProfileScreen(
         if (sessionEnded) onLogoutSuccess()
     }
 
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
+    ) {
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding()
             .verticalScroll(rememberScrollState()).padding(16.dp),
@@ -91,6 +97,7 @@ fun ProfileScreen(
         TextButton(onClick = onBack, enabled = !operationInProgress && !sessionEnded) {
             Text("Volver")
         }
+    }
     }
 
     if (showDeleteDialog) {
