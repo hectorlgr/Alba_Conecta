@@ -5,9 +5,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +37,7 @@ fun AppNavigation(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier,
+        modifier = modifier.background(MaterialTheme.colorScheme.background),
         // Transiciones entre pantallas: fundido + deslizamiento horizontal sutil
         enterTransition = { fadeIn(tween(250)) + slideInHorizontally(tween(250)) { it / 8 } },
         exitTransition = { fadeOut(tween(200)) },
