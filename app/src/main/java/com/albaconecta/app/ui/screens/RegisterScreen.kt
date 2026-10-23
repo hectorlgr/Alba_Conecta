@@ -43,8 +43,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -68,6 +74,21 @@ fun RegisterScreen(
     val form by registerViewModel.formState.collectAsStateWithLifecycle()
     val errors by registerViewModel.errors.collectAsStateWithLifecycle()
     val registration by registerViewModel.registrationState.collectAsStateWithLifecycle()
+    var rutValue by remember {
+        mutableStateOf(normalizeRutInput(TextFieldValue(form.rut)))
+    }
+    LaunchedEffect(form.rut) {
+        val normalized = normalizeRutInput(TextFieldValue(form.rut)).text
+        if (rutValue.text != normalized) {
+            rutValue = TextFieldValue(
+                normalized,
+                TextRange(
+                    rutValue.selection.start.coerceIn(0, normalized.length),
+                    rutValue.selection.end.coerceIn(0, normalized.length)
+                )
+            )
+        }
+    }
     val context = LocalContext.current
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -127,9 +148,20 @@ fun RegisterScreen(
             supportingText = errors.apellido?.let { message -> { Text(message) } }
         )
         OutlinedTextField(
-            value = form.rut, onValueChange = registerViewModel::updateRut,
+            value = rutValue,
+            onValueChange = { proposed ->
+                val normalized = normalizeRutInput(proposed)
+                // Reject overlong edits instead of silently removing the check digit.
+                if (normalized.text.length <= 9) {
+                    rutValue = normalized
+                    if (normalized.text != form.rut) {
+                        registerViewModel.updateRut(normalized.text)
+                    }
+                }
+            },
             label = { Text("RUT") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+            visualTransformation = RutVisualTransformation,
             isError = errors.rut != null,
             trailingIcon = { ErrorStateIcon(errors.rut != null) },
             supportingText = errors.rut?.let { message -> { Text(message) } }
@@ -231,5 +263,60 @@ fun RegisterScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+}
+
+private fun normalizeRutInput(value: TextFieldValue): TextFieldValue {
+    fun isRutCharacter(character: Char): Boolean =
+        character in '0'..'9' || character == 'k' || character == 'K'
+
+    val normalized = value.text.filter(::isRutCharacter).uppercase(Locale.ROOT)
+    if (normalized == value.text) return value
+
+    fun mapOffset(offset: Int): Int =
+        value.text.take(offset).count(::isRutCharacter)
+
+    fun mapRange(range: TextRange): TextRange =
+        TextRange(mapOffset(range.start), mapOffset(range.end))
+
+    return TextFieldValue(
+        text = normalized,
+        selection = mapRange(value.selection),
+        composition = value.composition?.let(::mapRange)
+    )
+}
+
+private object RutVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val formatted = StringBuilder()
+        val originalOffsets = IntArray(text.length + 1)
+        val transformedOffsets = mutableListOf(0)
+        val bodyLength = (text.length - 1).coerceAtLeast(0)
+
+        text.text.forEachIndexed { index, character ->
+            val separator = when {
+                index > 0 && index == bodyLength -> '-'
+                index > 0 && index < bodyLength && (bodyLength - index) % 3 == 0 -> '.'
+                else -> null
+            }
+            if (separator != null) {
+                formatted.append(separator)
+                // Both sides of a visual separator refer to the same internal boundary.
+                transformedOffsets.add(index)
+            }
+            originalOffsets[index] = formatted.length
+            formatted.append(character)
+            transformedOffsets.add(index + 1)
+        }
+        originalOffsets[text.length] = formatted.length
+
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                originalOffsets[offset.coerceIn(0, text.length)]
+
+            override fun transformedToOriginal(offset: Int): Int =
+                transformedOffsets[offset.coerceIn(0, formatted.length)]
+        }
+        return TransformedText(AnnotatedString(formatted.toString()), offsetMapping)
     }
 }
