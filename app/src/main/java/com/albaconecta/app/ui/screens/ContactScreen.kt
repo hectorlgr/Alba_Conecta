@@ -27,10 +27,14 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -419,10 +423,16 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                     value = formattedDate, onValueChange = {}, readOnly = true,
                     label = { Text("Fecha preferida de contacto") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     isError = errors.fechaContacto != null,
-                    trailingIcon = { ErrorStateIcon(errors.fechaContacto != null) },
+                    trailingIcon = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = "Seleccionar fecha de contacto"
+                            )
+                        }
+                    },
                     supportingText = errors.fechaContacto?.let { message -> { Text(message) } }
                 )
-                TextButton(onClick = { showDatePicker = true }) { Text("Seleccionar fecha") }
             }
         }
         AnimatedEntrance(delayMillis = 360) {
