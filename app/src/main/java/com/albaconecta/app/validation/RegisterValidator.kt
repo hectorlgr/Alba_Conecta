@@ -7,7 +7,7 @@ import java.util.TimeZone
 
 object RegisterValidator {
     private val passwordRegex = Regex("""^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$""")
-    private val rutRegex = Regex("""(?:\d{7,8}|\d{1,2}\.\d{3}\.\d{3})-[0-9kK]""")
+    private val rutRegex = Regex("""(?:[0-9]{6,8}-?|(?:[0-9]{1,2}\.)?[0-9]{3}\.[0-9]{3}-)[0-9kK]""")
     private val correoRegex = Regex("""[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}""")
     private val telefonoRegex = Regex("""(?:\+56\s?)?[2-9]\d{8}""")
 
@@ -28,7 +28,7 @@ object RegisterValidator {
         },
         rut = when {
             form.rut.isBlank() -> "Ingresa tu RUT"
-            !rutRegex.matches(form.rut.trim()) -> "Usa un RUT como 12.345.678-9 o 12345678-9"
+            !isValidRut(form.rut.trim()) -> "El RUT o dígito verificador no es válido."
             else -> null
         },
         correo = when {
@@ -55,6 +55,24 @@ object RegisterValidator {
         },
         aceptaTerminos = if (!form.aceptaTerminos) "Debes aceptar los términos y condiciones" else null
     )
+
+    private fun isValidRut(rut: String): Boolean {
+        if (!rutRegex.matches(rut)) return false
+
+        val digits = rut.replace(".", "").replace("-", "")
+        var sum = 0
+        var factor = 2
+        for (digit in digits.dropLast(1).reversed()) {
+            sum += digit.digitToInt() * factor
+            factor = if (factor == 7) 2 else factor + 1
+        }
+        val expected = when (val result = 11 - sum % 11) {
+            11 -> '0'
+            10 -> 'K'
+            else -> '0' + result
+        }
+        return digits.last().uppercaseChar() == expected
+    }
 
     private fun validateBirthDate(
         birthDateMillis: Long?,
