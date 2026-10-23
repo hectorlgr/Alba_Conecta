@@ -1,5 +1,10 @@
 package com.albaconecta.app.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -26,20 +31,24 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.albaconecta.app.ui.components.ErrorStateIcon
 import com.albaconecta.app.ui.components.PulsableButton
 import com.albaconecta.app.ui.components.SuccessIcon
+import com.albaconecta.app.util.LocalNotificationHelper
 import com.albaconecta.app.viewmodel.RegisterViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -55,6 +64,28 @@ fun RegisterScreen(
     val form by registerViewModel.formState.collectAsStateWithLifecycle()
     val errors by registerViewModel.errors.collectAsStateWithLifecycle()
     val registration by registerViewModel.registrationState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (registerViewModel.consumeRegistrationNotification() && granted) {
+            LocalNotificationHelper.showRegistrationSuccess(context)
+        }
+    }
+
+    LaunchedEffect(registration.success) {
+        if (registration.success && registerViewModel.beginRegistrationNotification()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else if (registerViewModel.consumeRegistrationNotification()) {
+                LocalNotificationHelper.showRegistrationSuccess(context)
+            }
+        }
+    }
+
     var showDatePicker by remember { mutableStateOf(false) }
     val formattedDate = remember(form.fechaNacimiento) {
         form.fechaNacimiento?.let {

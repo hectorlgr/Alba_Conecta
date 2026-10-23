@@ -62,6 +62,23 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val _registrationState = MutableStateFlow(RegistrationState())
     val registrationState: StateFlow<RegistrationState> = _registrationState.asStateFlow()
 
+    // Survive screen recreation without clearing the visual success state.
+    private var registrationNotificationStarted = false
+    private var registrationNotificationConsumed = false
+
+    fun beginRegistrationNotification(): Boolean {
+        if (!_registrationState.value.success || registrationNotificationStarted) return false
+        registrationNotificationStarted = true
+        return true
+    }
+
+    fun consumeRegistrationNotification(): Boolean {
+        if (!registrationNotificationStarted || registrationNotificationConsumed) return false
+        // Consume before publishing, including denial or a failed publication.
+        registrationNotificationConsumed = true
+        return true
+    }
+
     fun updateNombre(value: String) { _formState.update { it.copy(nombre = value) } }
     fun updateApellido(value: String) { _formState.update { it.copy(apellido = value) } }
     fun updateRut(value: String) { _formState.update { it.copy(rut = value) } }
