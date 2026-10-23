@@ -43,23 +43,78 @@ class ContactViewModel : ViewModel() {
         _formState.update(transform)
     }
 
-    fun updateNombre(value: String) = edit { it.copy(nombre = value) }
-    fun updateCorreo(value: String) = edit { it.copy(correo = value) }
-    fun updateTelefono(value: String) = edit { it.copy(telefono = value) }
-    fun updateMensaje(value: String) = edit { it.copy(mensaje = value) }
-    fun updateRepresentaEmpresa(value: Boolean) = edit {
-        it.copy(representaEmpresa = value, cantidadTrabajadores = if (value) it.cantidadTrabajadores else null)
+    fun updateNombre(value: String) {
+        edit { it.copy(nombre = value) }
+        if (_errors.value.nombre != null) {
+            val validation = ContactValidator.validate(_formState.value)
+            _errors.update { it.copy(nombre = validation.nombre) }
+        }
     }
+
+    fun updateCorreo(value: String) {
+        edit { it.copy(correo = value) }
+        if (_errors.value.correo != null) {
+            val validation = ContactValidator.validate(_formState.value)
+            _errors.update { it.copy(correo = validation.correo) }
+        }
+    }
+
+    fun updateTelefono(value: String) {
+        edit { it.copy(telefono = value) }
+        if (_errors.value.telefono != null) {
+            val validation = ContactValidator.validate(_formState.value)
+            _errors.update { it.copy(telefono = validation.telefono) }
+        }
+    }
+
+    fun updateMensaje(value: String) {
+        edit { it.copy(mensaje = value) }
+        if (_errors.value.mensaje != null) {
+            val validation = ContactValidator.validate(_formState.value)
+            _errors.update { it.copy(mensaje = validation.mensaje) }
+        }
+    }
+
+    fun updateRepresentaEmpresa(value: Boolean) {
+        edit {
+            it.copy(representaEmpresa = value, cantidadTrabajadores = if (value) it.cantidadTrabajadores else null)
+        }
+        if (_errors.value.cantidadTrabajadores != null) {
+            val validation = ContactValidator.validate(_formState.value)
+            _errors.update { it.copy(cantidadTrabajadores = validation.cantidadTrabajadores) }
+        }
+    }
+
     fun updateCantidadTrabajadores(text: String) {
         if (text.isEmpty()) {
             edit { it.copy(cantidadTrabajadores = null) }
         } else if (text.all { it in '0'..'9' }) {
             val number = text.toIntOrNull() ?: return
             edit { it.copy(cantidadTrabajadores = number) }
+        } else {
+            return
+        }
+        if (_errors.value.cantidadTrabajadores != null) {
+            val validation = ContactValidator.validate(_formState.value)
+            _errors.update { it.copy(cantidadTrabajadores = validation.cantidadTrabajadores) }
         }
     }
-    fun updateFechaContacto(value: Long?) = edit { it.copy(fechaContacto = value) }
-    fun updateAutorizaContacto(value: Boolean) = edit { it.copy(autorizaContacto = value) }
+
+    fun updateFechaContacto(value: Long?) {
+        edit { it.copy(fechaContacto = value) }
+        if (_errors.value.fechaContacto != null) {
+            val validation = ContactValidator.validate(_formState.value)
+            _errors.update { it.copy(fechaContacto = validation.fechaContacto) }
+        }
+    }
+
+    fun updateAutorizaContacto(value: Boolean) {
+        edit { it.copy(autorizaContacto = value) }
+        if (_errors.value.autorizaContacto != null) {
+            val validation = ContactValidator.validate(_formState.value)
+            _errors.update { it.copy(autorizaContacto = validation.autorizaContacto) }
+        }
+    }
 
     fun submit() {
         val result = ContactValidator.validate(_formState.value)
