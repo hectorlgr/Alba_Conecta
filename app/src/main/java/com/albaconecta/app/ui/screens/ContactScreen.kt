@@ -274,7 +274,7 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            "♥ Gracias",
+                            "Gracias!",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
