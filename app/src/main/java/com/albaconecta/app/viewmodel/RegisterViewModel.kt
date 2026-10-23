@@ -79,15 +79,91 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         return true
     }
 
-    fun updateNombre(value: String) { _formState.update { it.copy(nombre = value) } }
-    fun updateApellido(value: String) { _formState.update { it.copy(apellido = value) } }
-    fun updateRut(value: String) { _formState.update { it.copy(rut = value) } }
-    fun updateCorreo(value: String) { _formState.update { it.copy(correo = value) } }
-    fun updateTelefono(value: String) { _formState.update { it.copy(telefono = value) } }
-    fun updateFechaNacimiento(value: Long?) { _formState.update { it.copy(fechaNacimiento = value) } }
-    fun updatePassword(value: String) { _formState.update { it.copy(password = value) } }
-    fun updateConfirmPassword(value: String) { _formState.update { it.copy(confirmPassword = value) } }
-    fun updateAceptaTerminos(value: Boolean) { _formState.update { it.copy(aceptaTerminos = value) } }
+    fun updateNombre(value: String) {
+        _formState.update { it.copy(nombre = value) }
+        if (_errors.value.nombre != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update { it.copy(nombre = validation.nombre) }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updateApellido(value: String) {
+        _formState.update { it.copy(apellido = value) }
+        if (_errors.value.apellido != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update { it.copy(apellido = validation.apellido) }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updateRut(value: String) {
+        _formState.update { it.copy(rut = value) }
+        if (_errors.value.rut != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update { it.copy(rut = validation.rut) }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updateCorreo(value: String) {
+        _formState.update { it.copy(correo = value) }
+        if (_errors.value.correo != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update { it.copy(correo = validation.correo) }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updateTelefono(value: String) {
+        _formState.update { it.copy(telefono = value) }
+        if (_errors.value.telefono != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update { it.copy(telefono = validation.telefono) }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updateFechaNacimiento(value: Long?) {
+        _formState.update { it.copy(fechaNacimiento = value) }
+        if (_errors.value.fechaNacimiento != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update { it.copy(fechaNacimiento = validation.fechaNacimiento) }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updatePassword(value: String) {
+        _formState.update { it.copy(password = value) }
+        if (_errors.value.password != null || _errors.value.confirmPassword != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update {
+                it.copy(
+                    password = if (it.password != null) validation.password else null,
+                    confirmPassword = if (it.confirmPassword != null) validation.confirmPassword else null
+                )
+            }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updateConfirmPassword(value: String) {
+        _formState.update { it.copy(confirmPassword = value) }
+        if (_errors.value.confirmPassword != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update { it.copy(confirmPassword = validation.confirmPassword) }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
+
+    fun updateAceptaTerminos(value: Boolean) {
+        _formState.update { it.copy(aceptaTerminos = value) }
+        if (_errors.value.aceptaTerminos != null) {
+            val validation = RegisterValidator.validate(_formState.value)
+            _errors.update { it.copy(aceptaTerminos = validation.aceptaTerminos) }
+        }
+        _registrationState.update { it.copy(errorMessage = null) }
+    }
 
     fun validateForm(): Boolean {
         val result = RegisterValidator.validate(_formState.value)
