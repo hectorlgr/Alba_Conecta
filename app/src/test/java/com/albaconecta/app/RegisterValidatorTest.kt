@@ -23,14 +23,14 @@ class RegisterValidatorTest {
         }.timeInMillis
 
     private val validForm = RegisterFormState(
-        nombre = " Ana ", apellido = "Pérez", rut = "12.345.678-9",
+        nombre = " Ana ", apellido = "Pérez", rut = "12.345.678-5",
         correo = " ana@example.cl ", telefono = "+56912345678", fechaNacimiento = 946684800000L,
         password = "Clave123", confirmPassword = "Clave123", aceptaTerminos = true
     )
 
     @Test fun validFormHasNoErrors() {
         assertEquals(RegisterErrors(), validate(validForm))
-        assertEquals(RegisterErrors(), validate(validForm.copy(rut = "12345678-k", telefono = "912345678")))
+        assertEquals(RegisterErrors(), validate(validForm.copy(rut = "12345698-k", telefono = "912345678")))
     }
 
     @Test fun invalidEmailIsRejected() {
@@ -38,7 +38,34 @@ class RegisterValidatorTest {
     }
 
     @Test fun invalidRutFormatIsRejected() {
-        assertNotNull(validate(validForm.copy(rut = "123456789")).rut)
+        listOf(
+            "123456789", "12.345.678-9", "12.345.698-0", "123456-1",
+            "12.345.678-", "12.345.678", "12345", "12345-5", "123456789-2",
+            "12a345678-5", "+12345678-5", "12 345 678-5", "12,345,678-5",
+            "1.2345.678-5", "12..345.678-5", "12345678--5", "12.345.6785",
+            "12345678-X", "-", "K"
+        ).forEach { rut ->
+            assertEquals(rut, "El RUT o dígito verificador no es válido.",
+                validate(validForm.copy(rut = rut)).rut)
+        }
+    }
+
+    @Test fun validRutFormatsAndCheckDigitsAreAccepted() {
+        listOf(
+            "12.345.678-5", "12345678-5", "123456785",
+            "12.345.698-K", "12.345.698-k", "12345698-K", "12345698k",
+            "123.456-0", "123456-0", "1234560",
+            "1.234.567-4", "1234567-4", "12345674",
+            " 12.345.678-5 "
+        ).forEach { rut ->
+            assertNull(rut, validate(validForm.copy(rut = rut)).rut)
+        }
+    }
+
+    @Test fun rutIsRequired() {
+        listOf("", " ", "\t\n").forEach { rut ->
+            assertEquals("Ingresa tu RUT", validate(validForm.copy(rut = rut)).rut)
+        }
     }
 
     @Test fun invalidPhoneIsRejected() {
