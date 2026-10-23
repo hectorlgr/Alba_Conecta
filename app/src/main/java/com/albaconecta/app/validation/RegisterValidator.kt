@@ -6,6 +6,7 @@ import java.util.Calendar
 import java.util.TimeZone
 
 object RegisterValidator {
+    private val passwordRegex = Regex("""^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$""")
     private val rutRegex = Regex("""(?:\d{7,8}|\d{1,2}\.\d{3}\.\d{3})-[0-9kK]""")
     private val correoRegex = Regex("""[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}""")
     private val telefonoRegex = Regex("""(?:\+56\s?)?[2-9]\d{8}""")
@@ -43,7 +44,8 @@ object RegisterValidator {
         fechaNacimiento = validateBirthDate(form.fechaNacimiento, referenceTimeMillis, referenceTimeZone),
         password = when {
             form.password.isEmpty() -> "Ingresa una contraseña"
-            form.password.length < 8 -> "La contraseña debe tener al menos 8 caracteres"
+            !passwordRegex.matches(form.password) ->
+                "La contraseña debe tener al menos 8 caracteres, una minúscula, una mayúscula y un dígito"
             else -> null
         },
         confirmPassword = when {

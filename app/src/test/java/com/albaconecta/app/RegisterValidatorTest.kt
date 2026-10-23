@@ -47,12 +47,30 @@ class RegisterValidatorTest {
 
     @Test fun shortPasswordIsRejected() {
         assertNotNull(validate(validForm.copy(password = "1234567")).password)
+        assertNotNull(validate(validForm.copy(password = "Ab1")).password)
+    }
+
+    @Test fun passwordsWithRequiredCharactersAreAccepted() {
+        listOf("Pass1234", "ClaveSegura2026!").forEach { password ->
+            assertEquals(RegisterErrors(), validate(validForm.copy(
+                password = password, confirmPassword = password
+            )))
+        }
+    }
+
+    @Test fun passwordsMissingRequiredCharactersAreRejected() {
+        listOf("password123", "PASSWORD123", "Password").forEach { password ->
+            assertEquals(
+                "La contraseña debe tener al menos 8 caracteres, una minúscula, una mayúscula y un dígito",
+                validate(validForm.copy(password = password, confirmPassword = password)).password
+            )
+        }
     }
 
     @Test fun confirmationMustMatchCaseAndSpaces() {
         assertNotNull(validate(validForm.copy(confirmPassword = "clave123")).confirmPassword)
         assertNotNull(validate(validForm.copy(confirmPassword = " Clave123 ")).confirmPassword)
-        assertEquals(RegisterErrors(), validate(validForm.copy(password = " clave  ", confirmPassword = " clave  ")))
+        assertEquals(RegisterErrors(), validate(validForm.copy(password = " Clave1 ", confirmPassword = " Clave1 ")))
     }
 
     @Test fun termsAreRequired() {
