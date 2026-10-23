@@ -7,6 +7,7 @@ import com.albaconecta.app.data.local.AlbaDatabase
 import com.albaconecta.app.data.local.SessionDataStore
 import com.albaconecta.app.data.local.UserEntity
 import com.albaconecta.app.data.repository.UserRepository
+import com.albaconecta.app.util.BiometricAuthenticator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +23,9 @@ data class ProfileState(
     val logoutLoading: Boolean = false,
     val logoutSuccess: Boolean = false,
     val deleteLoading: Boolean = false,
-    val deleteSuccess: Boolean = false
+    val deleteSuccess: Boolean = false,
+    val biometricEnabled: Boolean = false,
+    val biometricAvailable: Boolean = false
 )
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
@@ -51,6 +54,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                         user = user,
                         errorMessage = if (user == null) "No se pudo cargar la cuenta." else null
                     )
+                    // Despues del estado base se agregan los datos biometricos con
+                    // copy(): las asignaciones completas de arriba los dejarian en false.
+                    loadBiometricPreferences()
                 }
             } catch (exception: CancellationException) {
                 throw exception
@@ -59,6 +65,34 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     loading = false,
                     errorMessage = "No se pudo cargar la cuenta."
                 )
+            }
+        }
+    }
+
+    /** Carga si el usuario activo la huella y si el dispositivo la soporta. */
+    private suspend fun loadBiometricPreferences() {
+        val enabled = sessionDataStore.biometricLoginEnabled.first()
+        val available = BiometricAuthenticator.canAuthenticate(getApplication<Application>())
+        _state.update { it.copy(biometricEnabled = enabled, biometricAvailable = available) }
+    }
+
+    /** Activa o desactiva el login biometrico (llamado desde el Switch del Perfil). */
+    fun setBiometricLoginEnabled(enabled: Boolean) {
+        val current = _state.value
+        if (current.loading || current.logoutLoading || current.deleteLoading ||
+            current.logoutSuccess || current.deleteSuccess
+        ) return
+        if (enabled == current.biometricEnabled) return
+        viewModelScope.launch {
+            try {
+                sessionDataStore.setBiometricLoginEnabled(enabled)
+                _state.update { it.copy(biometricEnabled = enabled) }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Exception) {
+                _state.update {
+                    it.copy(errorMessage = "No se pudo actualizar el acceso con huella. Inténtalo nuevamente.")
+                }
             }
         }
     }
@@ -112,8 +146,23 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     }
                     throw deleteException
                 }
+                // La credencial biometrica muere con la cuenta. Borrado best-effort:
+                // si fallara, ya no existiria un usuario al que iniciar sesion con huella.
+                try {
+                    sessionDataStore.setBiometricLoginEnabled(false)
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (_: Exception) {
+                    // Se ignora deliberadamente.
+                }
                 _state.update {
-                    it.copy(user = null, deleteLoading = false, deleteSuccess = true, errorMessage = null)
+                    it.copy(
+                        user = null,
+                        deleteLoading = false,
+                        deleteSuccess = true,
+                        errorMessage = null,
+                        biometricEnabled = false
+                    )
                 }
             } catch (exception: CancellationException) {
                 throw exception

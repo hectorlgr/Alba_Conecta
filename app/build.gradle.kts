@@ -70,4 +70,7 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+
+    // Biometric (bonus: login con huella)
+    implementation(libs.androidx.biometric)
 }

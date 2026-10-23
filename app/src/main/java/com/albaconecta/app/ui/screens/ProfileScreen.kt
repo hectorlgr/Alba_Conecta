@@ -2,6 +2,7 @@ package com.albaconecta.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,6 +15,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,6 +75,33 @@ fun ProfileScreen(
             Text("Correo: ${user.correo}")
             Text("Teléfono: ${user.telefono}")
             Text("Fecha de nacimiento: $birthDate")
+        }
+        // Bonus: activa o desactiva el login con huella para el proximo inicio de sesion.
+        // Es una credencial, no una sesion: sobrevive al "Cerrar sesion" y solo
+        // desaparece al "Eliminar cuenta".
+        if (state.user != null) {
+            Text("Acceso con huella", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(if (state.biometricEnabled) "Activado" else "Desactivado")
+                    if (!state.biometricAvailable) {
+                        Text(
+                            "Inscribe una huella en los Ajustes del teléfono para usar esta función.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                Switch(
+                    checked = state.biometricEnabled,
+                    enabled = state.biometricAvailable && !state.loading &&
+                        !operationInProgress && !sessionEnded,
+                    onCheckedChange = profileViewModel::setBiometricLoginEnabled
+                )
+            }
         }
         state.errorMessage?.let {
             Text(it, color = MaterialTheme.colorScheme.error)
