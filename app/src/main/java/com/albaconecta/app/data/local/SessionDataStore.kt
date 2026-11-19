@@ -39,14 +39,25 @@ class SessionDataStore(context: Context) {
         preferences[BIOMETRIC_LOGIN_ENABLED] ?: false
     }
 
-    suspend fun setBiometricLoginEnabled(enabled: Boolean) {
+    /**
+     * Dueño de la credencial biométrica. Con varias cuentas en el mismo teléfono,
+     * la huella no puede entrar "como el primer usuario de la tabla": entra como este.
+     */
+    val biometricUserId: Flow<Int?> = dataStore.data.map { preferences ->
+        preferences[BIOMETRIC_USER_ID]
+    }
+
+    suspend fun setBiometricLoginEnabled(enabled: Boolean, userId: Int) {
         dataStore.edit { preferences ->
             preferences[BIOMETRIC_LOGIN_ENABLED] = enabled
+            if (enabled) preferences[BIOMETRIC_USER_ID] = userId
+            else preferences.remove(BIOMETRIC_USER_ID) // sin credencial no hay dueño
         }
     }
 
     private companion object {
         val LOGGED_USER_ID = intPreferencesKey("logged_user_id")
         val BIOMETRIC_LOGIN_ENABLED = booleanPreferencesKey("biometric_login_enabled")
+        val BIOMETRIC_USER_ID = intPreferencesKey("biometric_user_id")
     }
 }

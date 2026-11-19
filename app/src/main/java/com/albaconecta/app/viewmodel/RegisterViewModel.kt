@@ -180,9 +180,9 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         _registrationState.value = RegistrationState(loading = true)
         viewModelScope.launch {
             try {
-                if (userRepository.getExistingUser() != null) {
+                if (userRepository.getUserByEmail(form.correo) != null) {
                     _registrationState.value = RegistrationState(
-                        errorMessage = "Ya existe una cuenta registrada en este dispositivo."
+                        errorMessage = "Ya existe una cuenta con ese correo."
                     )
                     return@launch
                 }

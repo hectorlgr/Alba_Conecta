@@ -83,9 +83,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             current.logoutSuccess || current.deleteSuccess
         ) return
         if (enabled == current.biometricEnabled) return
+        // La credencial se liga al usuario logueado: con varias cuentas, cada una
+        // activa su propia huella y la desactiva al salir del perfil.
+        val userId = current.user?.id ?: return
         viewModelScope.launch {
             try {
-                sessionDataStore.setBiometricLoginEnabled(enabled)
+                sessionDataStore.setBiometricLoginEnabled(enabled, userId)
                 _state.update { it.copy(biometricEnabled = enabled) }
             } catch (exception: CancellationException) {
                 throw exception
@@ -149,7 +152,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 // La credencial biometrica muere con la cuenta. Borrado best-effort:
                 // si fallara, ya no existiria un usuario al que iniciar sesion con huella.
                 try {
-                    sessionDataStore.setBiometricLoginEnabled(false)
+                    sessionDataStore.setBiometricLoginEnabled(false, user.id)
                 } catch (exception: CancellationException) {
                     throw exception
                 } catch (_: Exception) {

@@ -44,7 +44,7 @@ data class LoginState(
 data class BiometricState(
     val enabled: Boolean = false,   // el usuario lo activo desde Perfil
     val available: Boolean = false, // hay sensor y una huella fuerte (Clase 3) inscrita
-    val userExists: Boolean = false // hay una cuenta en este dispositivo
+    val userExists: Boolean = false // hay un usuario válido dueño de la credencial biométrica
 ) {
     /** Delega en la funcion pura de util: la misma logica que se testea. */
     val showLoginButton: Boolean
@@ -76,7 +76,9 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val enabled = sessionDataStore.biometricLoginEnabled.first()
-                val userExists = userRepository.getExistingUser() != null
+                val biometricUserId = sessionDataStore.biometricUserId.first()
+                val userExists =
+                    biometricUserId != null && userRepository.getUserById(biometricUserId) != null
                 val available = BiometricAuthenticator.canAuthenticate(getApplication<Application>())
                 _biometricState.value = BiometricState(
                     enabled = enabled,
@@ -157,10 +159,12 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         _loginState.value = LoginState(loading = true)
         viewModelScope.launch {
             try {
-                // Una cuenta por dispositivo: el usuario existente es el que entra.
-                val user = userRepository.getExistingUser()
+                // La huella entra como el dueño de la credencial guardada, no como
+                // "el primer usuario de la tabla".
+                val biometricUserId = sessionDataStore.biometricUserId.first()
+                val user = biometricUserId?.let { userRepository.getUserById(it) }
                 if (user == null) {
-                    _loginState.value = LoginState(errorMessage = "No hay una cuenta en este dispositivo.")
+                    _loginState.value = LoginState(errorMessage = "No hay una cuenta asociada a la huella en este dispositivo.")
                     return@launch
                 }
                 sessionDataStore.saveSession(user.id)
