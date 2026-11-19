@@ -16,9 +16,28 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** Datos de perfil que sí puede ver la UI: sin `passwordHash` ni `passwordSalt`. */
+data class ProfileUi(
+    val nombre: String,
+    val apellido: String,
+    val rut: String,
+    val correo: String,
+    val telefono: String,
+    val fechaNacimiento: Long
+)
+
+private fun UserEntity.toProfileUi() = ProfileUi(
+    nombre = nombre,
+    apellido = apellido,
+    rut = rut,
+    correo = correo,
+    telefono = telefono,
+    fechaNacimiento = fechaNacimiento
+)
+
 data class ProfileState(
     val loading: Boolean = true,
-    val user: UserEntity? = null,
+    val user: ProfileUi? = null,
     val errorMessage: String? = null,
     val logoutLoading: Boolean = false,
     val logoutSuccess: Boolean = false,
@@ -38,6 +57,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     private val _state = MutableStateFlow(ProfileState())
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
+    // La entidad con credenciales no sale del ViewModel: solo se usa para borrar la cuenta.
+    private var userEntity: UserEntity? = null
+
     init {
         viewModelScope.launch {
             try {
@@ -49,9 +71,10 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     )
                 } else {
                     val user = userRepository.getUserById(loggedUserId)
+                    userEntity = user
                     _state.value = ProfileState(
                         loading = false,
-                        user = user,
+                        user = user?.toProfileUi(),
                         errorMessage = if (user == null) "No se pudo cargar la cuenta." else null
                     )
                     // Despues del estado base se agregan los datos biometricos con
@@ -85,7 +108,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         if (enabled == current.biometricEnabled) return
         // La credencial se liga al usuario logueado: con varias cuentas, cada una
         // activa su propia huella y la desactiva al salir del perfil.
-        val userId = current.user?.id ?: return
+        val userId = userEntity?.id ?: return
         viewModelScope.launch {
             try {
                 sessionDataStore.setBiometricLoginEnabled(enabled, userId)
@@ -108,6 +131,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 sessionDataStore.clearSession()
+                userEntity = null
                 _state.update { it.copy(user = null, logoutLoading = false, logoutSuccess = true) }
             } catch (exception: CancellationException) {
                 throw exception
@@ -129,7 +153,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         val current = _state.value
         if (current.loading || current.logoutLoading || current.deleteLoading ||
             current.logoutSuccess || current.deleteSuccess) return
-        val user = current.user ?: return
+        val user = userEntity ?: return
         _state.update { it.copy(deleteLoading = true, deleteSuccess = false, errorMessage = null) }
 
         viewModelScope.launch {
