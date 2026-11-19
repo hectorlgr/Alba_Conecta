@@ -21,7 +21,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 10.0.2.2 = host del emulador; en un teléfono físico usar la IP LAN de tu PC.
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/\"")
+        }
         release {
+            // Pendiente: host real cuando exista el backend desplegado.
+            buildConfigField("String", "API_BASE_URL", "\"\"")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
@@ -34,6 +40,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
