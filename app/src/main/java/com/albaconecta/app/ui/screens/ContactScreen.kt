@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -43,7 +42,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,44 +80,43 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
     var speechError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val activity = LocalActivity.current
-    var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingPhotoUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraError by remember { mutableStateOf<String?>(null) }
     var cameraPermissionPending by rememberSaveable { mutableStateOf(false) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        val capturedUri = pendingPhotoUri
-        pendingPhotoUri = null
-        if (capturedUri != null) {
+        val capturedPath = pendingPhotoPath
+        pendingPhotoPath = null
+        if (capturedPath != null) {
             if (success) {
-                photoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-                photoUri = capturedUri
+                CameraUriFactory.delete(form.fotoPath)
+                contactViewModel.updateFoto(capturedPath)
             } else {
-                CameraUriFactory.delete(context, Uri.parse(capturedUri))
+                CameraUriFactory.delete(capturedPath)
             }
         }
     }
     fun launchCamera() {
-        if (pendingPhotoUri != null) return
+        if (pendingPhotoPath != null) return
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             cameraError = "Se necesita permiso de cámara para tomar una foto. Puedes habilitarlo desde Ajustes."
             return
         }
         cameraError = null
         try {
-            val uri = CameraUriFactory.create(context)
-            pendingPhotoUri = uri.toString()
-            cameraLauncher.launch(uri)
+            val file = CameraUriFactory.create(context)
+            pendingPhotoPath = file.absolutePath
+            cameraLauncher.launch(CameraUriFactory.uriFor(context, file))
         } catch (_: ActivityNotFoundException) {
-            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-            pendingPhotoUri = null
+            CameraUriFactory.delete(pendingPhotoPath)
+            pendingPhotoPath = null
             cameraError = "No hay una aplicación de cámara disponible."
         } catch (_: SecurityException) {
-            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-            pendingPhotoUri = null
+            CameraUriFactory.delete(pendingPhotoPath)
+            pendingPhotoPath = null
             cameraError = "No se pudo acceder a la cámara. Revisa el permiso de cámara en Ajustes."
         } catch (_: Exception) {
-            pendingPhotoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-            pendingPhotoUri = null
+            CameraUriFactory.delete(pendingPhotoPath)
+            pendingPhotoPath = null
             cameraError = "No se pudo preparar la captura. Inténtalo nuevamente."
         }
     }
@@ -137,12 +134,6 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
             } else {
                 "Permiso de cámara denegado. Puedes habilitarlo desde Ajustes de la aplicación."
             }
-        }
-    }
-    LaunchedEffect(submitState.success) {
-        if (submitState.success) {
-            photoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-            photoUri = null
         }
     }
     var speechRecognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
@@ -366,7 +357,7 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                     )
                 }
                 TextButton(
-                    enabled = pendingPhotoUri == null &&
+                    enabled = pendingPhotoPath == null &&
                             !cameraPermissionPending,
                     onClick = {
                         cameraError = null
@@ -388,11 +379,11 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                 ) {
                     Text("Tomar foto")
                 }
-                if (photoUri != null) {
+                if (form.fotoPath != null) {
                     Text("Foto adjunta")
                     TextButton(onClick = {
-                        photoUri?.let { CameraUriFactory.delete(context, Uri.parse(it)) }
-                        photoUri = null
+                        CameraUriFactory.delete(form.fotoPath)
+                        contactViewModel.updateFoto(null)
                     }) { Text("Quitar foto") }
                 }
                 cameraError?.let { Text(it, color = MaterialTheme.colorScheme.error) }

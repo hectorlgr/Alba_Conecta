@@ -7,25 +7,25 @@ import java.io.File
 import java.io.IOException
 
 object CameraUriFactory {
-    fun create(context: Context): Uri {
-        val directory = File(context.cacheDir, "contact_photos")
+    private const val DIRECTORY = "contact_photos"
+
+    /**
+     * Guarda en filesDir, no en cacheDir: Android puede vaciar el cache y el adjunto
+     * de una solicitud pendiente de reintento desaparecería.
+     */
+    fun create(context: Context): File {
+        val directory = File(context.filesDir, DIRECTORY)
         if (!directory.isDirectory && !directory.mkdirs()) {
-            throw IOException("Could not create camera cache directory")
+            throw IOException("Could not create contact photos directory")
         }
-        val file = File.createTempFile("contact_", ".jpg", directory)
-        try {
-            return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        } catch (exception: Exception) {
-            file.delete()
-            throw exception
-        }
+        return File.createTempFile("contact_", ".jpg", directory)
     }
 
-    fun delete(context: Context, uri: Uri) {
-        try {
-            context.contentResolver.delete(uri, null, null)
-        } catch (_: Exception) {
-            // Best-effort cleanup of a temporary cache file.
-        }
+    fun uriFor(context: Context, file: File): Uri =
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+
+    /** Best-effort: borrar un adjunto no debe romper la pantalla. */
+    fun delete(path: String?) {
+        if (path != null) File(path).delete()
     }
 }

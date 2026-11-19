@@ -15,7 +15,10 @@ data class ContactFormState(
     val representaEmpresa: Boolean = false,
     val cantidadTrabajadores: Int? = null,
     val fechaContacto: Long? = null,
-    val autorizaContacto: Boolean = false
+    val autorizaContacto: Boolean = false,
+    // Ruta absoluta del adjunto en filesDir. Es parte del formulario para que el
+    // envío (hoy local, mañana POST /solicitudes) no dependa de un estado de la pantalla.
+    val fotoPath: String? = null
 )
 
 data class ContactErrors(
@@ -116,6 +119,11 @@ class ContactViewModel : ViewModel() {
         }
     }
 
+    /** Foto tomada o quitada desde la pantalla. El archivo ya vive en filesDir. */
+    fun updateFoto(path: String?) {
+        edit { it.copy(fotoPath = path) }
+    }
+
     fun submit() {
         val result = ContactValidator.validate(_formState.value)
         _errors.value = result
@@ -124,6 +132,8 @@ class ContactViewModel : ViewModel() {
             return
         }
         // Local demonstration only: no request is sent or persisted.
+        // shortcut: el archivo de la foto queda en filesDir al "enviar" (borrarlo cuando el
+        // POST /solicitudes confirme 2xx); hoy borrarlo sería perder el adjunto sin enviar.
         _formState.value = ContactFormState()
         _errors.value = ContactErrors()
         _submitState.value = ContactSubmitState(success = true)

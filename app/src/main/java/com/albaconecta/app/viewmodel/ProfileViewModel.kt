@@ -150,6 +150,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteAccount() {
+        // shortcut: solo borra local; al existir backend debe llamar DELETE /me y borrar
+        // local recién con 2xx/401/404 (si no, la cuenta sigue viva en el servidor).
         val current = _state.value
         if (current.loading || current.logoutLoading || current.deleteLoading ||
             current.logoutSuccess || current.deleteSuccess) return
