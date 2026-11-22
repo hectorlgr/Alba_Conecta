@@ -14,5 +14,11 @@
 .externalNativeBuild
 .cxx
 local.properties
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/.venv/
 Instrucciones Evaluacion 2.docx
 AGENTS.md
+Ev. Parcial 2_Estudiante_Encargo_DSY1105.pdf
+Evaluación Parcial 3_Estudiante_Presentación_DSY1105.pdf

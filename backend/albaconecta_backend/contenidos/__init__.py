@@ -1,0 +1,1 @@
+"""Servicio `ms-contenidos`."""

@@ -66,14 +66,16 @@ fun ProfileScreen(
             CircularProgressIndicator()
         }
         state.user?.let { user ->
-            val birthDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }.format(Date(user.fechaNacimiento))
+            val birthDate = user.fechaNacimiento?.let { millis ->
+                SimpleDateFormat("dd/MM/yyyy", Locale.US).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                }.format(Date(millis))
+            } ?: "No registrada en este dispositivo"
 
             Text("${user.nombre} ${user.apellido}", style = MaterialTheme.typography.titleLarge)
-            Text("RUT: ${user.rut}")
+            Text("RUT: ${user.rut.ifBlank { "No registrado en este dispositivo" }}")
             Text("Correo: ${user.correo}")
-            Text("Teléfono: ${user.telefono}")
+            Text("Teléfono: ${user.telefono.ifBlank { "No registrado en este dispositivo" }}")
             Text("Fecha de nacimiento: $birthDate")
         }
         // Bonus: activa o desactiva el login con huella para el proximo inicio de sesion.
@@ -122,7 +124,7 @@ fun ProfileScreen(
                 contentColor = MaterialTheme.colorScheme.onError
             )
         ) {
-            Text(if (state.deleteLoading) "Eliminando cuenta..." else "Eliminar cuenta")
+            Text(if (state.deleteLoading) "Borrando..." else "Eliminar datos de este dispositivo")
         }
         TextButton(onClick = onBack, enabled = !operationInProgress && !sessionEnded) {
             Text("Volver")
@@ -134,7 +136,7 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Eliminar cuenta") },
-            text = { Text("Esta acción eliminará la cuenta almacenada en este dispositivo.") },
+            text = { Text("Se borrarán tu RUT, teléfono y fecha de nacimiento de este teléfono, y se cerrará la sesión. La cuenta del servidor se mantiene: todavía no existe el endpoint para eliminarla.") },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar") }
             },
@@ -143,7 +145,7 @@ fun ProfileScreen(
                     enabled = canDelete,
                     onClick = {
                         showDeleteDialog = false
-                        profileViewModel.deleteAccount()
+                        profileViewModel.borrarDatosLocales()
                     }
                 ) {
                     Text("Eliminar cuenta", color = MaterialTheme.colorScheme.error)

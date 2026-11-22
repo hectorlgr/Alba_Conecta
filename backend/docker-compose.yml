@@ -1,0 +1,138 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: albaconecta
+      POSTGRES_PASSWORD: albaconecta
+      POSTGRES_DB: albaconecta
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_datos:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U albaconecta -d bd_identidad"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ms-contenidos:
+    build:
+      context: .
+      args:
+        APP_MODULE: albaconecta_backend.contenidos.app:app
+    image: albaconecta/ms-contenidos:local
+    environment:
+      ENTORNO: production
+      SECRETO: ${SECRETO:-secreto-fallback-solo-desarrollo-cambiar}
+      DEMO_PASSWORD: ""
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
+      JWT_KID: ${JWT_KID:-albaconecta-dev}
+      DATABASE_URL_CONTENIDOS: postgresql+psycopg://albaconecta:albaconecta@postgres:5432/bd_contenidos
+      CORS_ORIGENES: http://localhost:8080
+      MIGRACION_DOMINIO: contenidos
+      APP_MODULE: albaconecta_backend.contenidos.app:app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.contenidos.rule: "PathPrefix(`/api/v1/contenidos`)"
+      traefik.http.routers.contenidos.entrypoints: web
+      traefik.http.services.contenidos.loadbalancer.server.port: "8000"
+
+  ms-vinculacion:
+    build:
+      context: .
+      args:
+        APP_MODULE: albaconecta_backend.vinculacion.app:app
+    image: albaconecta/ms-vinculacion:local
+    environment:
+      ENTORNO: production
+      SECRETO: ${SECRETO:-secreto-fallback-solo-desarrollo-cambiar}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
+      JWT_KID: ${JWT_KID:-albaconecta-dev}
+      DATABASE_URL_VINCULACION: postgresql+psycopg://albaconecta:albaconecta@postgres:5432/bd_vinculacion
+      CONTENIDOS_BASE_URL: http://ms-contenidos:8000
+      CORS_ORIGENES: http://localhost:8080
+      MIGRACION_DOMINIO: vinculacion
+      APP_MODULE: albaconecta_backend.vinculacion.app:app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.vinculacion.rule: "PathPrefix(`/api/v1/vinculacion`)"
+      traefik.http.routers.vinculacion.entrypoints: web
+      traefik.http.services.vinculacion.loadbalancer.server.port: "8000"
+
+  ms-identidad:
+    build:
+      context: .
+      args:
+        APP_MODULE: albaconecta_backend.identidad.app:app
+    image: albaconecta/ms-identidad:local
+    environment:
+      ENTORNO: production
+      SECRETO: ${SECRETO:-secreto-fallback-solo-desarrollo-cambiar}
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
+      JWT_KID: ${JWT_KID:-albaconecta-dev}
+      DATABASE_URL_IDENTIDAD: postgresql+psycopg://albaconecta:albaconecta@postgres:5432/bd_identidad
+      CORS_ORIGENES: http://localhost:8080
+      MIGRACION_DOMINIO: identidad
+      APP_MODULE: albaconecta_backend.identidad.app:app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.identidad.rule: "PathPrefix(`/api/v1/identidad`)"
+      traefik.http.routers.identidad.entrypoints: web
+      traefik.http.services.identidad.loadbalancer.server.port: "8000"
+
+  ms-talento:
+    build:
+      context: .
+      args:
+        APP_MODULE: albaconecta_backend.talento.app:app
+    image: albaconecta/ms-talento:local
+    environment:
+      ENTORNO: production
+      SECRETO: ${SECRETO:-secreto-fallback-solo-desarrollo-cambiar}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
+      JWT_KID: ${JWT_KID:-albaconecta-dev}
+      DATABASE_URL_TALENTO: postgresql+psycopg://albaconecta:albaconecta@postgres:5432/bd_talento
+      CORS_ORIGENES: http://localhost:8080
+      APP_MODULE: albaconecta_backend.talento.app:app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.talento.rule: "PathPrefix(`/api/v1/talento`)"
+      traefik.http.routers.talento.entrypoints: web
+      traefik.http.services.talento.loadbalancer.server.port: "8000"
+
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:8080
+      - --log.level=INFO
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - ms-contenidos
+      - ms-vinculacion
+      - ms-identidad
+      - ms-talento
+
+volumes:
+  postgres_datos:

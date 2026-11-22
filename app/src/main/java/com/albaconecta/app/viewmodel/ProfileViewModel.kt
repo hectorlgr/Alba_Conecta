@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.albaconecta.app.data.local.AlbaDatabase
+import com.albaconecta.app.data.local.SesionLocal
 import com.albaconecta.app.data.local.SessionDataStore
 import com.albaconecta.app.data.local.UserEntity
+import com.albaconecta.app.data.repository.AuthRepository
 import com.albaconecta.app.data.repository.UserRepository
 import com.albaconecta.app.util.BiometricAuthenticator
 import kotlinx.coroutines.CancellationException
@@ -16,9 +18,23 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Datos de perfil que sí puede ver la UI: sin `passwordHash` ni `passwordSalt`.
+ * RUT, teléfono y fecha son nulos para cuentas que solo existen en el servidor
+ * (el backend no guarda esos datos).
+ */
+data class ProfileUi(
+    val nombre: String,
+    val apellido: String,
+    val rut: String,
+    val correo: String,
+    val telefono: String,
+    val fechaNacimiento: Long?
+)
+
 data class ProfileState(
     val loading: Boolean = true,
-    val user: UserEntity? = null,
+    val user: ProfileUi? = null,
     val errorMessage: String? = null,
     val logoutLoading: Boolean = false,
     val logoutSuccess: Boolean = false,
@@ -30,6 +46,7 @@ data class ProfileState(
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionDataStore = SessionDataStore(application)
+    private val authRepository = AuthRepository(sessionDataStore)
     private val userRepository by lazy {
         val database = AlbaDatabase.getInstance(application)
         UserRepository(database.userDao())
@@ -38,22 +55,21 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     private val _state = MutableStateFlow(ProfileState())
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
+    // La entidad local completa no sale del ViewModel.
+    private var fichaLocal: UserEntity? = null
+
     init {
         viewModelScope.launch {
             try {
-                val loggedUserId = sessionDataStore.loggedUserId.first()
-                if (loggedUserId == null) {
+                val sesion = sessionDataStore.sesion.first()
+                if (sesion == null) {
                     _state.value = ProfileState(
                         loading = false,
                         errorMessage = "No hay una sesión activa."
                     )
                 } else {
-                    val user = userRepository.getUserById(loggedUserId)
-                    _state.value = ProfileState(
-                        loading = false,
-                        user = user,
-                        errorMessage = if (user == null) "No se pudo cargar la cuenta." else null
-                    )
+                    fichaLocal = userRepository.getUserByEmail(sesion.email)
+                    _state.value = ProfileState(loading = false, user = aProfileUi(sesion))
                     // Despues del estado base se agregan los datos biometricos con
                     // copy(): las asignaciones completas de arriba los dejarian en false.
                     loadBiometricPreferences()
@@ -68,6 +84,16 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
+
+    /** La sesión manda (nombre, correo, rol vienen del servidor); la ficha local aporta el resto. */
+    private fun aProfileUi(sesion: SesionLocal) = ProfileUi(
+        nombre = fichaLocal?.nombre ?: sesion.nombre,
+        apellido = fichaLocal?.apellido.orEmpty(),
+        rut = fichaLocal?.rut.orEmpty(),
+        correo = sesion.email,
+        telefono = fichaLocal?.telefono.orEmpty(),
+        fechaNacimiento = fichaLocal?.fechaNacimiento
+    )
 
     /** Carga si el usuario activo la huella y si el dispositivo la soporta. */
     private suspend fun loadBiometricPreferences() {
@@ -85,8 +111,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         if (enabled == current.biometricEnabled) return
         viewModelScope.launch {
             try {
-                sessionDataStore.setBiometricLoginEnabled(enabled)
-                _state.update { it.copy(biometricEnabled = enabled) }
+                val ok = authRepository.activarBiometria(enabled)
+                _state.update {
+                    if (ok) it.copy(biometricEnabled = enabled)
+                    else it.copy(errorMessage = "Inicia sesión para activar el acceso con huella.")
+                }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
@@ -100,11 +129,14 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun logout() {
         val current = _state.value
         if (current.loading || current.logoutLoading || current.deleteLoading ||
-            current.logoutSuccess || current.deleteSuccess) return
+            current.logoutSuccess || current.deleteSuccess
+        ) return
         _state.update { it.copy(logoutLoading = true, logoutSuccess = false, errorMessage = null) }
         viewModelScope.launch {
             try {
-                sessionDataStore.clearSession()
+                // Revoca los tokens en el servidor y limpia la sesión local.
+                authRepository.cerrarSesion()
+                fichaLocal = null
                 _state.update { it.copy(user = null, logoutLoading = false, logoutSuccess = true) }
             } catch (exception: CancellationException) {
                 throw exception
@@ -122,39 +154,23 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun deleteAccount() {
+    /**
+     * Borra la ficha local (RUT, teléfono, fecha de nacimiento) y cierra la sesión.
+     * La cuenta del servidor NO se borra: el backend todavía no expone DELETE /usuarios/me.
+     */
+    fun borrarDatosLocales() {
         val current = _state.value
         if (current.loading || current.logoutLoading || current.deleteLoading ||
-            current.logoutSuccess || current.deleteSuccess) return
-        val user = current.user ?: return
+            current.logoutSuccess || current.deleteSuccess
+        ) return
+        val ficha = fichaLocal
         _state.update { it.copy(deleteLoading = true, deleteSuccess = false, errorMessage = null) }
 
         viewModelScope.launch {
             try {
-                sessionDataStore.clearSession()
-                try {
-                    userRepository.deleteUser(user)
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (deleteException: Exception) {
-                    try {
-                        sessionDataStore.saveSession(user.id)
-                    } catch (exception: CancellationException) {
-                        throw exception
-                    } catch (_: Exception) {
-                        // Restoration is best-effort; deletion must still be reported as failed.
-                    }
-                    throw deleteException
-                }
-                // La credencial biometrica muere con la cuenta. Borrado best-effort:
-                // si fallara, ya no existiria un usuario al que iniciar sesion con huella.
-                try {
-                    sessionDataStore.setBiometricLoginEnabled(false)
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (_: Exception) {
-                    // Se ignora deliberadamente.
-                }
+                if (ficha != null) userRepository.deleteUser(ficha)
+                authRepository.olvidarDispositivo()
+                fichaLocal = null
                 _state.update {
                     it.copy(
                         user = null,
@@ -170,7 +186,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 _state.update {
                     it.copy(
                         deleteSuccess = false,
-                        errorMessage = "No se pudo eliminar la cuenta. Inténtalo nuevamente."
+                        errorMessage = "No se pudieron borrar los datos locales. Inténtalo nuevamente."
                     )
                 }
             } finally {

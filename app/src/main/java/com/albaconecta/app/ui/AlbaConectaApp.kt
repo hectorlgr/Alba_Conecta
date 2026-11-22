@@ -19,6 +19,6 @@ fun AlbaConectaApp(appViewModel: AppViewModel = viewModel()) {
         navController = navController,
         startDestination = Routes.HOME,
         sessionLoading = sessionState.loading,
-        isAuthenticated = !sessionState.loading && !sessionState.error && sessionState.loggedUserId != null
+        isAuthenticated = !sessionState.loading && !sessionState.error && sessionState.usuarioId != null
     )
 }

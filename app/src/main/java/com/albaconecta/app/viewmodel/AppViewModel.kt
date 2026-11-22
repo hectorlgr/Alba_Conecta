@@ -8,11 +8,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 data class AppSessionState(
     val loading: Boolean = true,
-    val loggedUserId: Int? = null,
+    val usuarioId: String? = null,
     val error: Boolean = false
 )
 
@@ -24,18 +25,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
-            sessionDataStore.loggedUserId
+            sessionDataStore.sesion
+                .map { sesion -> sesion?.usuarioId }
                 .catch {
                     _sessionState.value = AppSessionState(
                         loading = false,
-                        loggedUserId = null,
+                        usuarioId = null,
                         error = true
                     )
                 }
-                .collect { loggedUserId ->
+                .collect { usuarioId ->
                     _sessionState.value = AppSessionState(
                         loading = false,
-                        loggedUserId = loggedUserId,
+                        usuarioId = usuarioId,
                         error = false
                     )
                 }

@@ -60,6 +60,7 @@ import com.albaconecta.app.ui.components.PulsableButton
 import com.albaconecta.app.ui.components.SuccessIcon
 import com.albaconecta.app.util.LocalNotificationHelper
 import com.albaconecta.app.viewmodel.RegisterViewModel
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -90,24 +91,31 @@ fun RegisterScreen(
         }
     }
     val context = LocalContext.current
+    // Tras crear la cuenta siempre se vuelve al login: con el diálogo de permiso concedido
+    // o denegado (una sola vez, en el callback), o directamente si ya estaba concedido.
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (registerViewModel.consumeRegistrationNotification() && granted) {
+        if (granted && registerViewModel.consumeRegistrationNotification()) {
             LocalNotificationHelper.showRegistrationSuccess(context)
         }
+        onBackToLogin()
     }
 
     LaunchedEffect(registration.success) {
-        if (registration.success && registerViewModel.beginRegistrationNotification()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else if (registerViewModel.consumeRegistrationNotification()) {
+        if (!registration.success) return@LaunchedEffect
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            if (registerViewModel.consumeRegistrationNotification()) {
                 LocalNotificationHelper.showRegistrationSuccess(context)
             }
+            // Deja alcanzar a ver "Cuenta creada correctamente." antes de volver al login.
+            delay(800)
+            onBackToLogin()
         }
     }
 

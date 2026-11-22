@@ -3,22 +3,19 @@ package com.albaconecta.app.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.albaconecta.app.data.local.AlbaDatabase
 import com.albaconecta.app.data.local.SessionDataStore
-import com.albaconecta.app.data.repository.UserRepository
+import com.albaconecta.app.data.repository.AuthRepository
+import com.albaconecta.app.data.repository.ResultadoAuth
 import com.albaconecta.app.util.BiometricAuthenticator
-import com.albaconecta.app.util.PasswordHasher
 import com.albaconecta.app.util.shouldShowBiometricLogin
 import com.albaconecta.app.validation.LoginValidator
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 data class LoginFormState(
     val correo: String = "",
@@ -44,7 +41,7 @@ data class LoginState(
 data class BiometricState(
     val enabled: Boolean = false,   // el usuario lo activo desde Perfil
     val available: Boolean = false, // hay sensor y una huella fuerte (Clase 3) inscrita
-    val userExists: Boolean = false // hay una cuenta en este dispositivo
+    val userExists: Boolean = false // hay un refresh token reservado para la huella
 ) {
     /** Delega en la funcion pura de util: la misma logica que se testea. */
     val showLoginButton: Boolean
@@ -52,11 +49,8 @@ data class BiometricState(
 }
 
 class LoginViewModel(application: Application) : AndroidViewModel(application) {
-    private val userRepository by lazy {
-        val database = AlbaDatabase.getInstance(application)
-        UserRepository(database.userDao())
-    }
     private val sessionDataStore by lazy { SessionDataStore(application) }
+    private val authRepository by lazy { AuthRepository(sessionDataStore) }
 
     private val _formState = MutableStateFlow(LoginFormState())
     val formState: StateFlow<LoginFormState> = _formState.asStateFlow()
@@ -76,12 +70,12 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val enabled = sessionDataStore.biometricLoginEnabled.first()
-                val userExists = userRepository.getExistingUser() != null
+                val reservado = sessionDataStore.biometricRefreshToken.first()
                 val available = BiometricAuthenticator.canAuthenticate(getApplication<Application>())
                 _biometricState.value = BiometricState(
                     enabled = enabled,
                     available = available,
-                    userExists = userExists
+                    userExists = reservado != null
                 )
             } catch (exception: CancellationException) {
                 throw exception
@@ -120,21 +114,15 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         _loginState.value = LoginState(loading = true)
         viewModelScope.launch {
             try {
-                val user = userRepository.getUserByEmail(form.correo)
-                val validPassword = user != null && withContext(Dispatchers.Default) {
-                    PasswordHasher.verify(
-                        password = form.password,
-                        storedHash = user.passwordHash,
-                        storedSalt = user.passwordSalt
-                    )
+                when (val resultado = authRepository.login(form.correo, form.password)) {
+                    is ResultadoAuth.Ok -> {
+                        // La contraseña no se guarda en ningún lado: el backend ya la validó.
+                        _formState.value = LoginFormState()
+                        _loginState.value = LoginState(success = true)
+                    }
+                    is ResultadoAuth.Fallo ->
+                        _loginState.value = LoginState(errorMessage = resultado.mensaje)
                 }
-                if (user == null || !validPassword) {
-                    _loginState.value = LoginState(errorMessage = "Correo o contraseña incorrectos.")
-                    return@launch
-                }
-
-                sessionDataStore.saveSession(user.id)
-                _loginState.value = LoginState(success = true)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
@@ -157,14 +145,11 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         _loginState.value = LoginState(loading = true)
         viewModelScope.launch {
             try {
-                // Una cuenta por dispositivo: el usuario existente es el que entra.
-                val user = userRepository.getExistingUser()
-                if (user == null) {
-                    _loginState.value = LoginState(errorMessage = "No hay una cuenta en este dispositivo.")
-                    return@launch
+                when (val resultado = authRepository.entrarConBiometria()) {
+                    is ResultadoAuth.Ok -> _loginState.value = LoginState(success = true)
+                    is ResultadoAuth.Fallo ->
+                        _loginState.value = LoginState(errorMessage = resultado.mensaje)
                 }
-                sessionDataStore.saveSession(user.id)
-                _loginState.value = LoginState(success = true)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {

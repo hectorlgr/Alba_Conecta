@@ -17,9 +17,6 @@ interface UserDao {
     @Query("SELECT * FROM usuarios WHERE id = :id LIMIT 1")
     suspend fun getUserById(id: Int): UserEntity?
 
-    @Query("SELECT * FROM usuarios LIMIT 1")
-    suspend fun getExistingUser(): UserEntity?
-
     @Delete
     suspend fun deleteUser(user: UserEntity)
 }
