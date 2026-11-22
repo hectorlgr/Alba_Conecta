@@ -269,8 +269,11 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Text("Formulario completado correctamente. Confirmación local de demostración.",
-                            color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            "Recibimos tu solicitud. Guarda tu folio para consultar el avance: " +
+                                (submitState.folio ?: "—"),
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
@@ -435,9 +438,13 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                 errors.autorizaContacto?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
+                submitState.error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
                 PulsableButton(
                     onClick = contactViewModel::submit,
-                    text = "Enviar solicitud",
+                    text = if (submitState.enviando) "Enviando…" else "Enviar solicitud",
+                    enabled = !submitState.enviando,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

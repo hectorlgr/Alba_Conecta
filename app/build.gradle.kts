@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
 
@@ -22,8 +23,10 @@ android {
 
     buildTypes {
         debug {
-            // 10.0.2.2 = host del emulador; en un teléfono físico usar la IP LAN de tu PC.
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/\"")
+            // 127.0.0.1 + `adb reverse tcp:8000 tcp:8000`: funciona igual en emulador y en
+            // teléfono físico por USB. (10.0.2.2 falla en AVD con wlan0 activo, que sale por
+            // una red virtual distinta de la de eth0.)
+            buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:8000/\"")
         }
         release {
             // Pendiente: host real cuando exista el backend desplegado.
@@ -85,4 +88,10 @@ dependencies {
 
     // Biometric (bonus: login con huella)
     implementation(libs.androidx.biometric)
+
+    // Red: cliente HTTP contra el backend FastAPI
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.kotlinx.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 }

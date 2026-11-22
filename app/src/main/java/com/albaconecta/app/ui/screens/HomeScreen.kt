@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -23,11 +26,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.albaconecta.app.R
 import com.albaconecta.app.ui.components.AnimatedEntrance
+import com.albaconecta.app.viewmodel.EstadoContenido
+import com.albaconecta.app.viewmodel.ProgramasViewModel
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(programasViewModel: ProgramasViewModel = viewModel()) {
+    val estadoProgramas by programasViewModel.estado.collectAsStateWithLifecycle()
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -72,31 +81,45 @@ fun HomeScreen() {
         item {
             AnimatedEntrance(delayMillis = 160) {
                 Text(
-                    "Explora las áreas de la aplicación",
+                    "Programas de la fundación",
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.semantics { heading() }
                 )
             }
         }
-        listOf(
-            "Impacto" to "Conoce programas e iniciativas y su aporte a la comunidad.",
-            "Talento Alba" to "Descubre el enfoque de inclusión y oportunidades laborales.",
-            "Colaborar" to "Encuentra una forma sencilla de ponerte en contacto y participar."
-        ).forEachIndexed { index, (title, description) ->
-            item {
-                // Entrada escalonada: cada tarjeta aparece 80 ms después de la anterior
-                AnimatedEntrance(delayMillis = 240 + index * 80) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                title,
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.semantics { heading() }
-                            )
-                            Text(description, style = MaterialTheme.typography.bodyMedium)
+        // Contenido desde el backend (base de datos), no hardcodeado.
+        when (val estado = estadoProgramas) {
+            is EstadoContenido.Cargando -> item {
+                CircularProgressIndicator()
+            }
+
+            is EstadoContenido.Error -> item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(estado.mensaje, style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = programasViewModel::cargar) { Text("Reintentar") }
+                }
+            }
+
+            is EstadoContenido.Ok -> if (estado.datos.isEmpty()) {
+                item { Text("Todavía no hay programas publicados.", style = MaterialTheme.typography.bodyMedium) }
+            } else {
+                estado.datos.forEachIndexed { index, programa ->
+                    item(key = programa.id) {
+                        // Entrada escalonada: cada tarjeta aparece 80 ms después de la anterior
+                        AnimatedEntrance(delayMillis = 240 + index * 80) {
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        programa.titulo,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.semantics { heading() }
+                                    )
+                                    Text(programa.descripcion, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
                         }
                     }
                 }
