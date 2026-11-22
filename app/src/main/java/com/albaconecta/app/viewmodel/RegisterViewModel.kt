@@ -4,12 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.albaconecta.app.data.local.AlbaDatabase
+import com.albaconecta.app.data.local.SessionDataStore
 import com.albaconecta.app.data.local.UserEntity
+import com.albaconecta.app.data.repository.AuthRepository
+import com.albaconecta.app.data.repository.ResultadoAuth
 import com.albaconecta.app.data.repository.UserRepository
-import com.albaconecta.app.util.PasswordHasher
 import com.albaconecta.app.validation.RegisterValidator
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +53,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         val database = AlbaDatabase.getInstance(application)
         UserRepository(database.userDao())
     }
+    private val sessionDataStore by lazy { SessionDataStore(application) }
+    private val authRepository by lazy { AuthRepository(sessionDataStore) }
 
     private val _formState = MutableStateFlow(RegisterFormState())
     val formState: StateFlow<RegisterFormState> = _formState.asStateFlow()
@@ -62,18 +65,11 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val _registrationState = MutableStateFlow(RegistrationState())
     val registrationState: StateFlow<RegistrationState> = _registrationState.asStateFlow()
 
-    // Survive screen recreation without clearing the visual success state.
-    private var registrationNotificationStarted = false
+    // Evita mostrar la notificación dos veces ante recomposición o recreación de la pantalla.
     private var registrationNotificationConsumed = false
 
-    fun beginRegistrationNotification(): Boolean {
-        if (!_registrationState.value.success || registrationNotificationStarted) return false
-        registrationNotificationStarted = true
-        return true
-    }
-
     fun consumeRegistrationNotification(): Boolean {
-        if (!registrationNotificationStarted || registrationNotificationConsumed) return false
+        if (!_registrationState.value.success || registrationNotificationConsumed) return false
         // Consume before publishing, including denial or a failed publication.
         registrationNotificationConsumed = true
         return true
@@ -180,29 +176,23 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         _registrationState.value = RegistrationState(loading = true)
         viewModelScope.launch {
             try {
-                if (userRepository.getUserByEmail(form.correo) != null) {
-                    _registrationState.value = RegistrationState(
-                        errorMessage = "Ya existe una cuenta con ese correo."
-                    )
-                    return@launch
+                // La cuenta vive en la base del backend: el alta y el login son una sola llamada.
+                when (val resultado = authRepository.registrar(form.nombre, form.correo, form.password)) {
+                    is ResultadoAuth.Ok -> {
+                        guardarFichaLocal(form, resultado.usuario.email)
+                        _registrationState.value = RegistrationState(success = true)
+                    }
+                    is ResultadoAuth.Fallo -> {
+                        _errors.update {
+                            it.copy(
+                                nombre = resultado.campos["nombre"] ?: it.nombre,
+                                correo = resultado.campos["email"] ?: it.correo,
+                                password = resultado.campos["password"] ?: it.password
+                            )
+                        }
+                        _registrationState.value = RegistrationState(errorMessage = resultado.mensaje)
+                    }
                 }
-
-                val credentials = withContext(Dispatchers.Default) {
-                    PasswordHasher.generate(form.password)
-                }
-                val user = UserEntity(
-                    id = 0,
-                    nombre = form.nombre.trim(),
-                    apellido = form.apellido.trim(),
-                    rut = form.rut.trim(),
-                    correo = form.correo,
-                    telefono = form.telefono.trim(),
-                    fechaNacimiento = requireNotNull(form.fechaNacimiento),
-                    passwordHash = credentials.hash,
-                    passwordSalt = credentials.salt
-                )
-                userRepository.insertUser(user)
-                _registrationState.value = RegistrationState(success = true)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
@@ -213,5 +203,27 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                 _registrationState.update { it.copy(loading = false) }
             }
         }
+    }
+
+    /**
+     * RUT, teléfono y fecha de nacimiento no existen en el backend (PII fuera del servidor):
+     * quedan solo en la ficha local de Room para mostrarlos en el perfil de este teléfono.
+     * Sin hash de contraseña: la clave la valida el servidor, aquí no se vuelve a verificar.
+     */
+    private suspend fun guardarFichaLocal(form: RegisterFormState, correoConfirmado: String) {
+        if (userRepository.getUserByEmail(correoConfirmado) != null) return
+        userRepository.insertUser(
+            UserEntity(
+                id = 0,
+                nombre = form.nombre.trim(),
+                apellido = form.apellido.trim(),
+                rut = form.rut.trim(),
+                correo = correoConfirmado,
+                telefono = form.telefono.trim(),
+                fechaNacimiento = requireNotNull(form.fechaNacimiento),
+                passwordHash = "",
+                passwordSalt = ""
+            )
+        )
     }
 }
