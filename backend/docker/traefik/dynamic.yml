@@ -1,0 +1,40 @@
+http:
+  routers:
+    contenidos:
+      rule: "PathPrefix(`/api/v1/contenidos`)"
+      entryPoints:
+        - web
+      service: contenidos
+    vinculacion:
+      rule: "PathPrefix(`/api/v1/vinculacion`)"
+      entryPoints:
+        - web
+      service: vinculacion
+    identidad:
+      rule: "PathPrefix(`/api/v1/identidad`)"
+      entryPoints:
+        - web
+      service: identidad
+    talento:
+      rule: "PathPrefix(`/api/v1/talento`)"
+      entryPoints:
+        - web
+      service: talento
+
+  services:
+    contenidos:
+      loadBalancer:
+        servers:
+          - url: "http://ms-contenidos:8000"
+    vinculacion:
+      loadBalancer:
+        servers:
+          - url: "http://ms-vinculacion:8000"
+    identidad:
+      loadBalancer:
+        servers:
+          - url: "http://ms-identidad:8000"
+    talento:
+      loadBalancer:
+        servers:
+          - url: "http://ms-talento:8000"

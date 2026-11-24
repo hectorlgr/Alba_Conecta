@@ -23,15 +23,17 @@ services:
         APP_MODULE: albaconecta_backend.contenidos.app:app
     image: albaconecta/ms-contenidos:local
     environment:
-      ENTORNO: production
+      ENTORNO: ${ENTORNO:-dev}
       SECRETO: ${SECRETO:-secreto-fallback-solo-desarrollo-cambiar}
-      DEMO_PASSWORD: ""
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
-      JWT_KID: ${JWT_KID:-albaconecta-dev}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-Demo1234}
+      JWT_PUBLIC_KEY: /run/secrets/jwt_public.pem
+      JWT_KID: ${JWT_KID:-albaconecta-local-2026-11}
       DATABASE_URL_CONTENIDOS: postgresql+psycopg://albaconecta:albaconecta@postgres:5432/bd_contenidos
-      CORS_ORIGENES: http://localhost:8080
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:8080}
       MIGRACION_DOMINIO: contenidos
       APP_MODULE: albaconecta_backend.contenidos.app:app
+    volumes:
+      - ./secrets/jwt_public.pem:/run/secrets/jwt_public.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,15 +50,18 @@ services:
         APP_MODULE: albaconecta_backend.vinculacion.app:app
     image: albaconecta/ms-vinculacion:local
     environment:
-      ENTORNO: production
+      ENTORNO: ${ENTORNO:-dev}
       SECRETO: ${SECRETO:-secreto-fallback-solo-desarrollo-cambiar}
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
-      JWT_KID: ${JWT_KID:-albaconecta-dev}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-Demo1234}
+      JWT_PUBLIC_KEY: /run/secrets/jwt_public.pem
+      JWT_KID: ${JWT_KID:-albaconecta-local-2026-11}
       DATABASE_URL_VINCULACION: postgresql+psycopg://albaconecta:albaconecta@postgres:5432/bd_vinculacion
       CONTENIDOS_BASE_URL: http://ms-contenidos:8000
-      CORS_ORIGENES: http://localhost:8080
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:8080}
       MIGRACION_DOMINIO: vinculacion
       APP_MODULE: albaconecta_backend.vinculacion.app:app
+    volumes:
+      - ./secrets/jwt_public.pem:/run/secrets/jwt_public.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,15 +78,19 @@ services:
         APP_MODULE: albaconecta_backend.identidad.app:app
     image: albaconecta/ms-identidad:local
     environment:
-      ENTORNO: production
+      ENTORNO: ${ENTORNO:-dev}
       SECRETO: ${SECRETO:-secreto-fallback-solo-desarrollo-cambiar}
-      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
-      JWT_KID: ${JWT_KID:-albaconecta-dev}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-Demo1234}
+      JWT_PRIVATE_KEY: /run/secrets/jwt_private.pem
+      JWT_PUBLIC_KEY: /run/secrets/jwt_public.pem
+      JWT_KID: ${JWT_KID:-albaconecta-local-2026-11}
       DATABASE_URL_IDENTIDAD: postgresql+psycopg://albaconecta:albaconecta@postgres:5432/bd_identidad
-      CORS_ORIGENES: http://localhost:8080
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:8080}
       MIGRACION_DOMINIO: identidad
       APP_MODULE: albaconecta_backend.identidad.app:app
+    volumes:
+      - ./secrets/jwt_private.pem:/run/secrets/jwt_private.pem:ro
+      - ./secrets/jwt_public.pem:/run/secrets/jwt_public.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,13 +107,17 @@ services:
         APP_MODULE: albaconecta_backend.talento.app:app
     image: albaconecta/ms-talento:local
     environment:
-      ENTORNO: production
+      ENTORNO: ${ENTORNO:-dev}
       SECRETO: ${SECRETO:-secreto-fallback-solo-desarrollo-cambiar}
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
-      JWT_KID: ${JWT_KID:-albaconecta-dev}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-Demo1234}
+      JWT_PUBLIC_KEY: /run/secrets/jwt_public.pem
+      JWT_KID: ${JWT_KID:-albaconecta-local-2026-11}
       DATABASE_URL_TALENTO: postgresql+psycopg://albaconecta:albaconecta@postgres:5432/bd_talento
-      CORS_ORIGENES: http://localhost:8080
+      MIGRACION_DOMINIO: talento
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:8080}
       APP_MODULE: albaconecta_backend.talento.app:app
+    volumes:
+      - ./secrets/jwt_public.pem:/run/secrets/jwt_public.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,15 +132,16 @@ services:
     command:
       - --api.dashboard=true
       - --api.insecure=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:8080
+      - --providers.file=true
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:8088
       - --log.level=INFO
     ports:
-      - "8080:8080"
+      - "8080:8088"
       - "8081:8081"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     depends_on:
       - ms-contenidos
       - ms-vinculacion
