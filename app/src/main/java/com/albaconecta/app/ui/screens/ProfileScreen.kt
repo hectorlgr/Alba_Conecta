@@ -14,6 +14,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -26,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,11 +46,22 @@ fun ProfileScreen(
     val state by profileViewModel.state.collectAsStateWithLifecycle()
     var showDeleteDialog by remember { mutableStateOf(false) }
     val sessionEnded = state.logoutSuccess || state.deleteSuccess
-    val operationInProgress = state.logoutLoading || state.deleteLoading
+    val operationInProgress = state.logoutLoading || state.deleteLoading || state.saveLoading
     val canDelete = !state.loading && !operationInProgress && !sessionEnded && state.user != null
+    val canEdit = !state.loading && !operationInProgress && !sessionEnded && state.user != null
 
     LaunchedEffect(sessionEnded) {
         if (sessionEnded) onLogoutSuccess()
+    }
+
+    // Feedback visual al guardar
+    LaunchedEffect(state.saveSuccess) {
+        if (state.saveSuccess) {
+            // Se muestra guardado por 1.5s y luego se limpia
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                profileViewModel.resetSaveSuccess()
+            }, 1500)
+        }
     }
 
     Surface(
@@ -61,7 +74,16 @@ fun ProfileScreen(
             .verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Perfil", style = MaterialTheme.typography.headlineMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Perfil", style = MaterialTheme.typography.headlineMedium)
+            if (canEdit && !state.editing) {
+                TextButton(onClick = { profileViewModel.empezarEdicion() }) { Text("Editar") }
+            }
+        }
         if (state.loading) {
             CircularProgressIndicator()
         }
@@ -72,11 +94,46 @@ fun ProfileScreen(
                 }.format(Date(millis))
             } ?: "No registrada en este dispositivo"
 
-            Text("${user.nombre} ${user.apellido}", style = MaterialTheme.typography.titleLarge)
-            Text("RUT: ${user.rut.ifBlank { "No registrado en este dispositivo" }}")
-            Text("Correo: ${user.correo}")
-            Text("Teléfono: ${user.telefono.ifBlank { "No registrado en este dispositivo" }}")
-            Text("Fecha de nacimiento: $birthDate")
+            if (state.editing) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = user.nombre,
+                        onValueChange = profileViewModel::actualizarNombre,
+                        label = { Text("Nombre") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Text)
+                    )
+                    OutlinedTextField(
+                        value = user.telefono,
+                        onValueChange = profileViewModel::actualizarTelefono,
+                        label = { Text("Teléfono") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Phone)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(onClick = { profileViewModel.cancelarEdicion() }) { Text("Cancelar") }
+                        Button(
+                            onClick = { profileViewModel.guardarCambios() },
+                            enabled = !state.saveLoading
+                        ) {
+                            Text(if (state.saveLoading) "Guardando..." else "Guardar")
+                        }
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("${user.nombre} ${user.apellido}", style = MaterialTheme.typography.titleLarge)
+                    Text("RUT: ${user.rut.ifBlank { "No registrado en este dispositivo" }}")
+                    Text("Correo: ${user.correo}")
+                    Text("Teléfono: ${user.telefono.ifBlank { "No registrado en este dispositivo" }}")
+                    Text("Fecha de nacimiento: $birthDate")
+                }
+            }
         }
         // Bonus: activa o desactiva el login con huella para el proximo inicio de sesion.
         // Es una credencial, no una sesion: sobrevive al "Cerrar sesion" y solo
