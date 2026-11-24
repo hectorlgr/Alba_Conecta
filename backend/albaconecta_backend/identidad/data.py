@@ -26,7 +26,8 @@ from .models import RefreshToken, Usuario
 # Validar configuración crítica al importar (falla rápido en producción)
 validar_configuracion(settings)
 
-db.crear_tablas("identidad")
+if settings.entorno.lower() not in ("prod", "produccion", "production"):
+    db.crear_tablas("identidad")
 
 ITERACIONES = 200_000
 _PASSWORD_HASH = PasswordHash.recommended()

@@ -38,3 +38,35 @@ data class HistoriaDto(
     val titulo: String,
     val resumen: String
 )
+
+// --- Vinculación: tipos de colaboración ---
+
+/** `GET /api/v1/vinculacion/tipos-colaboracion` */
+@Serializable
+data class TipoColaboracionDto(
+    val codigo: String,
+    val nombre: String,
+    val activo: Boolean
+)
+
+// --- Talento ---
+
+/** `GET /api/v1/talento/candidatos` (paginado) y `GET /candidatos/{codigo}` */
+@Serializable
+data class CandidatoDto(
+    @SerialName("codigo_publico") val codigoPublico: String,
+    val iniciales: String,
+    val resumen: String,
+    val apoyos: List<String>,
+    val publicado: Boolean,
+    val eliminado: Boolean = false,
+    @SerialName("fecha_actualizacion") val fechaActualizacion: String
+)
+
+/** `GET /api/v1/talento/apoyos` */
+@Serializable
+data class ApoyoDto(
+    val codigo: String,
+    val nombre: String,
+    val descripcion: String
+)

@@ -1,0 +1,893 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ms-talento",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "tags": [
+          "salud"
+        ],
+        "summary": "Vivo",
+        "operationId": "vivo_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Vivo Health Live Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "salud"
+        ],
+        "summary": "Listo",
+        "operationId": "listo_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Listo Health Ready Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/health/live": {
+      "get": {
+        "tags": [
+          "salud"
+        ],
+        "summary": "Vivo",
+        "operationId": "vivo_api_v1_talento_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Vivo Api V1 Talento Health Live Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/health/ready": {
+      "get": {
+        "tags": [
+          "salud"
+        ],
+        "summary": "Listo",
+        "operationId": "listo_api_v1_talento_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Listo Api V1 Talento Health Ready Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/candidatos": {
+      "get": {
+        "tags": [
+          "talento"
+        ],
+        "summary": "Listar Candidatos",
+        "operationId": "listar_candidatos_api_v1_talento_candidatos_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Página, base 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Página, base 1"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Elementos por página (máx. 50)",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Elementos por página (máx. 50)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_CandidatoOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/candidatos/{codigo_publico}": {
+      "get": {
+        "tags": [
+          "talento"
+        ],
+        "summary": "Detalle Candidato",
+        "operationId": "detalle_candidato_api_v1_talento_candidatos__codigo_publico__get",
+        "parameters": [
+          {
+            "name": "codigo_publico",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Codigo Publico"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidatoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/apoyos": {
+      "get": {
+        "tags": [
+          "talento"
+        ],
+        "summary": "Listar Apoyos",
+        "operationId": "listar_apoyos_api_v1_talento_apoyos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApoyoOut"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Apoyos Api V1 Talento Apoyos Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/puestos": {
+      "post": {
+        "tags": [
+          "talento"
+        ],
+        "summary": "Crear Puesto",
+        "operationId": "crear_puesto_api_v1_talento_puestos_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PuestoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuestoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/talento/puestos/{id_}": {
+      "get": {
+        "tags": [
+          "talento"
+        ],
+        "summary": "Detalle Puesto",
+        "operationId": "detalle_puesto_api_v1_talento_puestos__id___get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id "
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuestoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/puestos/{id_}/compatibilidad": {
+      "post": {
+        "tags": [
+          "talento"
+        ],
+        "summary": "Compatibilidad",
+        "description": "Caso borde 13: sin apoyos declarados el candidato se excluye, sin puntaje inventado.",
+        "operationId": "compatibilidad_api_v1_talento_puestos__id___compatibilidad_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id_",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id "
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatibilidadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/diagnostico": {
+      "post": {
+        "tags": [
+          "talento"
+        ],
+        "summary": "Crear Diagnostico",
+        "operationId": "crear_diagnostico_api_v1_talento_diagnostico_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiagnosticoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talento/diagnostico/{id_}": {
+      "get": {
+        "tags": [
+          "talento"
+        ],
+        "summary": "Detalle Diagnostico",
+        "operationId": "detalle_diagnostico_api_v1_talento_diagnostico__id___get",
+        "parameters": [
+          {
+            "name": "id_",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id "
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApoyoOut": {
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "codigo",
+          "nombre",
+          "descripcion"
+        ],
+        "title": "ApoyoOut"
+      },
+      "CandidatoOmitido": {
+        "properties": {
+          "codigo_publico": {
+            "type": "string",
+            "title": "Codigo Publico"
+          },
+          "motivo": {
+            "type": "string",
+            "title": "Motivo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "codigo_publico",
+          "motivo"
+        ],
+        "title": "CandidatoOmitido"
+      },
+      "CandidatoOut": {
+        "properties": {
+          "codigo_publico": {
+            "type": "string",
+            "title": "Codigo Publico"
+          },
+          "iniciales": {
+            "type": "string",
+            "title": "Iniciales"
+          },
+          "resumen": {
+            "type": "string",
+            "title": "Resumen"
+          },
+          "apoyos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Apoyos"
+          },
+          "publicado": {
+            "type": "boolean",
+            "title": "Publicado"
+          },
+          "eliminado": {
+            "type": "boolean",
+            "const": false,
+            "title": "Eliminado",
+            "default": false
+          },
+          "fecha_actualizacion": {
+            "type": "string",
+            "title": "Fecha Actualizacion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "codigo_publico",
+          "iniciales",
+          "resumen",
+          "apoyos",
+          "publicado",
+          "fecha_actualizacion"
+        ],
+        "title": "CandidatoOut"
+      },
+      "CompatibilidadOut": {
+        "properties": {
+          "puesto_id": {
+            "type": "string",
+            "title": "Puesto Id"
+          },
+          "resultados": {
+            "items": {
+              "$ref": "#/components/schemas/ResultadoCompatibilidad"
+            },
+            "type": "array",
+            "title": "Resultados"
+          },
+          "omitidos": {
+            "items": {
+              "$ref": "#/components/schemas/CandidatoOmitido"
+            },
+            "type": "array",
+            "title": "Omitidos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "puesto_id",
+          "resultados",
+          "omitidos"
+        ],
+        "title": "CompatibilidadOut"
+      },
+      "DiagnosticoIn": {
+        "properties": {
+          "apoyos_interes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Apoyos Interes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "apoyos_interes"
+        ],
+        "title": "DiagnosticoIn"
+      },
+      "DiagnosticoOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "sugerencias": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sugerencias"
+          },
+          "fecha_creacion": {
+            "type": "string",
+            "title": "Fecha Creacion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "sugerencias",
+          "fecha_creacion"
+        ],
+        "title": "DiagnosticoOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Pagina_CandidatoOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CandidatoOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit",
+          "has_more"
+        ],
+        "title": "Pagina[CandidatoOut]"
+      },
+      "PuestoIn": {
+        "properties": {
+          "titulo": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Titulo"
+          },
+          "descripcion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion"
+          },
+          "tareas": {
+            "items": {
+              "$ref": "#/components/schemas/TareaIn"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Tareas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "titulo",
+          "tareas"
+        ],
+        "title": "PuestoIn"
+      },
+      "PuestoOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          },
+          "descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion"
+          },
+          "tareas": {
+            "items": {
+              "$ref": "#/components/schemas/TareaOut"
+            },
+            "type": "array",
+            "title": "Tareas"
+          },
+          "fecha_creacion": {
+            "type": "string",
+            "title": "Fecha Creacion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "titulo",
+          "tareas",
+          "fecha_creacion"
+        ],
+        "title": "PuestoOut"
+      },
+      "ResultadoCompatibilidad": {
+        "properties": {
+          "codigo_publico": {
+            "type": "string",
+            "title": "Codigo Publico"
+          },
+          "puntaje": {
+            "type": "integer",
+            "title": "Puntaje"
+          },
+          "explicacion": {
+            "type": "string",
+            "title": "Explicacion"
+          },
+          "apoyos_faltantes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Apoyos Faltantes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "codigo_publico",
+          "puntaje",
+          "explicacion",
+          "apoyos_faltantes"
+        ],
+        "title": "ResultadoCompatibilidad"
+      },
+      "TareaIn": {
+        "properties": {
+          "apoyo_codigo": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 3,
+            "title": "Apoyo Codigo"
+          },
+          "descripcion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "apoyo_codigo"
+        ],
+        "title": "TareaIn"
+      },
+      "TareaOut": {
+        "properties": {
+          "apoyo_codigo": {
+            "type": "string",
+            "title": "Apoyo Codigo"
+          },
+          "descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "apoyo_codigo"
+        ],
+        "title": "TareaOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

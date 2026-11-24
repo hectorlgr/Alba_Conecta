@@ -427,3 +427,55 @@ def test_puesto_ajeno_responde_404(talento: TestClient):
     respuesta = talento.get(f"/api/v1/talento/puestos/{puesto['id']}", headers=otra)
     assert respuesta.status_code == 404
     assert respuesta.json()["code"] == "NO_ENCONTRADO"
+
+
+# --- ms-talento: persistencia y reinicio ---
+
+
+def test_talento_catalogo_publico_desde_postgres(talento: TestClient):
+    """El catálogo público se lee de PostgreSQL (bd_talento)."""
+    respuesta = talento.get("/api/v1/talento/candidatos")
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["total"] == 4
+    codigos = {c["codigo_publico"] for c in cuerpo["items"]}
+    assert codigos == {"C-001", "C-002", "C-003", "C-004"}
+    for c in cuerpo["items"]:
+        assert c["eliminado"] is False
+        assert "apoyos" in c
+        assert isinstance(c["apoyos"], list)
+
+
+def test_talento_apoyos_publicos_desde_postgres(talento: TestClient):
+    """El catálogo de apoyos se lee de PostgreSQL."""
+    respuesta = talento.get("/api/v1/talento/apoyos")
+    assert respuesta.status_code == 200
+    apoyos = respuesta.json()
+    assert len(apoyos) == 4
+    codigos = {a["codigo"] for a in apoyos}
+    assert codigos == {"AP-01", "AP-02", "AP-03", "AP-04"}
+
+
+def test_talento_seed_sobrevive_reinicio(talento: TestClient):
+    """Mismo seed tras reiniciar la app (idempotencia del seed)."""
+    # Primera lectura
+    primera = talento.get("/api/v1/talento/candidatos").json()
+    assert primera["total"] == 4
+
+    # Simular reinicio: volver a importar el módulo data (seed se ejecuta en import)
+    # En producción el contenedor se reinicia y el entrypoint corre Alembic + seed.
+    # Aquí comprobamos que no se duplica: la app ya inicializó, una segunda importación
+    # no debería añadir filas (la comprobación real es contra la BD).
+    from albaconecta_backend.talento import data
+    data.semilla_catalogo()  # debería ser no-op porque ya existen filas
+
+    segunda = talento.get("/api/v1/talento/candidatos").json()
+    assert segunda["total"] == 4
+    # Verificar contra BD directamente
+    from albaconecta_backend.common import db
+    from albaconecta_backend.talento.models import Candidato
+    from sqlalchemy import select
+
+    with db.sesion("talento") as sesion:
+        total = len(sesion.scalars(select(Candidato)).all())
+    assert total == 4

@@ -12,6 +12,8 @@ import com.albaconecta.app.viewmodel.AppViewModel
 @Composable
 fun AlbaConectaApp(appViewModel: AppViewModel = viewModel()) {
     val sessionState by appViewModel.sessionState.collectAsStateWithLifecycle()
+    val enLinea by appViewModel.enLinea.collectAsStateWithLifecycle()
+    val pendientes by appViewModel.pendientes.collectAsStateWithLifecycle()
 
     val navController = rememberNavController()
 
@@ -19,6 +21,8 @@ fun AlbaConectaApp(appViewModel: AppViewModel = viewModel()) {
         navController = navController,
         startDestination = Routes.HOME,
         sessionLoading = sessionState.loading,
-        isAuthenticated = !sessionState.loading && !sessionState.error && sessionState.usuarioId != null
+        isAuthenticated = !sessionState.loading && !sessionState.error && sessionState.usuarioId != null,
+        enLinea = enLinea,
+        pendientes = pendientes
     )
 }

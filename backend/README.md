@@ -1,100 +1,181 @@
-# Backend Alba Conecta — Fase 0 + identidad segura
+# Backend Alba Conecta — Compose + 4 servicios + PostgreSQL + Traefik
 
-Implementación Python del plan `docs/PLAN_BACKEND_FASTAPI.md`: esqueleto desplegable
-(Fase 0) y contrato congelado con datos semilla en memoria (Fase 1). **Todavía sin base
-de datos**: los modelos, migraciones, JWT RS256 y Redis llegan en las fases 2–4.
+Implementación completa de los cuatro microservicios FastAPI con bases de datos PostgreSQL separadas, migraciones Alembic, autenticación RS256/JWKS y gateway Traefik en puerto 8080. Corresponde al cierre del plan (§12.2–§12.4 y §12.8).
 
-## Estructura
+## Arquitectura en ejecución
 
-```text
-backend/
-├── albaconecta_backend/
-│   ├── common/            # config, errores RFC 7807, request-id, rate limit, auth, schemas
-│   ├── contenidos/        # :8001  /api/v1/contenidos
-│   ├── vinculacion/       # :8002  /api/v1/vinculacion
-│   ├── identidad/         # :8003  /api/v1/identidad
-│   └── talento/           # :8004  /api/v1/talento
-├── tests/                 # pruebas de contrato y de casos borde
-└── pyproject.toml
+```
+                    ┌─────────────────────────────────────┐
+                    │        Traefik :8080 (LAN)          │
+                    │  /api/v1/contenidos   → ms-contenidos │
+                    │  /api/v1/vinculacion  → ms-vinculacion│
+                    │  /api/v1/identidad    → ms-identidad  │
+                    │  /api/v1/talento      → ms-talento    │
+                    └─────────────────────────────────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼                   ▼
+   ┌────────────┐      ┌────────────┐      ┌────────────┐      ┌────────────┐
+   │bd_contenidos│      │bd_vinculacion│    │bd_identidad│      │bd_talento  │
+   │(PostgreSQL) │      │(PostgreSQL)  │    │(PostgreSQL)│      │(PostgreSQL)│
+   └────────────┘      └────────────┘      └────────────┘      └────────────┘
+          │                   │                   │                   │
+   ┌──────┴──────┐     ┌──────┴──────┐     ┌──────┴──────┐     ┌──────┴──────┐
+   │categoria   │     │solicitud    │     │usuario      │     │candidato    │
+   │programa    │     │historial    │     │refresh_token│     │apoyo        │
+   │indicador   │     │idempotencia │     │             │     │candidato_apoyo│
+   │historia    │     │_solicitud   │     │             │     │             │
+   └────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
-Cada servicio expone `app` y se levanta con su propio uvicorn; comparten `common` para
-no duplicar errores, seguridad ni paginación. `gateway.py` monta los cuatro routers en una
-sola app (:8000) como el gateway Traefik del plan.
+Cada servicio es un contenedor independiente con su propia base de datos física. El entrypoint ejecuta `alembic upgrade <dominio>@head` antes de arrancar Uvicorn.
 
-## Levantar
+## Levantar desde cero (reproducible)
 
 ```bash
-cd backend
-python3 -m venv .venv
-./.venv/bin/pip install "fastapi>=0.115" "uvicorn[standard]" httpx pytest "cryptography>=44" "pwdlib[argon2]>=0.2"
+cd AlbaConecta/backend
 
-# Todo junto en http://localhost:8000 (lo que usa la app Android)
-./.venv/bin/uvicorn albaconecta_backend.gateway:app --port 8000 --reload
+# 1. Limpieza total (volúmenes, imágenes, bases)
+docker compose down -v --rmi local
 
-./.venv/bin/uvicorn albaconecta_backend.contenidos.app:app  --port 8001 --reload
-./.venv/bin/uvicorn albaconecta_backend.vinculacion.app:app --port 8002 --reload
-./.venv/bin/uvicorn albaconecta_backend.identidad.app:app   --port 8003 --reload
-./.venv/bin/uvicorn albaconecta_backend.talento.app:app     --port 8004 --reload
+# 2. Generar claves RSA (una sola vez; guarda las rutas en .env)
+mkdir -p secrets
+openssl genrsa -out secrets/jwt_private.pem 2048
+openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
+
+# 3. Variables de entorno (ajusta SECRETO y JWT_KID)
+cat > .env <<'EOF'
+ENTORNO=production
+SECRETO=pon-aqui-un-secreto-largo-aleatorio-de-32-chars-minimo
+JWT_PRIVATE_KEY=./secrets/jwt_private.pem
+JWT_PUBLIC_KEY=./secrets/jwt_public.pem
+JWT_KID=albaconecta-2026-11
+DEMO_PASSWORD=cambia-esta-clave-de-demo
+CORS_ORIGENES=http://localhost:8080
+EOF
+
+# 4. Levantar todo (PostgreSQL + 4 servicios + Traefik)
+docker compose up -d --build
+
+# 5. Verificar salud (desde host)
+for u in contenidos vinculacion identidad talento; do
+  echo "[$u]"; curl -sS http://127.0.0.1:8080/api/v1/$u/health/live | jq
+done
+
+# 6. Verificar migraciones y tablas
+for db in bd_contenidos bd_vinculacion bd_identidad bd_talento; do
+  echo "[$db]"
+  docker compose exec -T postgres psql -U albaconecta -d "$db" -Atc "select tablename from pg_tables where schemaname='public' order by 1"
+done
+
+# 7. Pruebas backend
+docker compose exec -T ms-talento python -m pytest -q
+# o desde host con el venv local
+./.venv/bin/python -m pytest -q
 ```
 
-Swagger de cada servicio en `http://localhost:800X/docs`, salud en `/health/live` y `/health/ready`.
-Pruebas: `./.venv/bin/python -m pytest`.
+## Conexión desde dispositivo Android físico (teléfono externo)
 
-## Variables de entorno
+La app Android en modo debug usa `API_BASE_URL = http://127.0.0.1:8080/` (gateway Traefik). Para que el teléfono en la misma red LAN llegue al backend:
 
-| Variable | Defecto | Uso |
-|---|---|---|
-| `ENTORNO` | `dev` | entorno lógico (`dev` o `prod`) |
-| `SECRETO` | *(vacío)* | Validación de arranque de compatibilidad. **Obligatorio y seguro en producción**; mínimo 32 caracteres. |
-| `JWT_PRIVATE_KEY` | *(dev genera clave)* | Clave privada PEM para RS256. Obligatoria en producción; puede ser PEM o ruta a archivo. |
-| `JWT_PUBLIC_KEY` | *(dev deriva clave)* | Clave pública PEM publicada en JWKS. Obligatoria en producción; puede ser PEM o ruta a archivo. |
-| `JWT_KID` | `albaconecta-dev` | Identificador estable de la clave activa. Obligatorio con valor propio en producción. |
-| `DEMO_PASSWORD` | *(vacío)* | **Obligatorio en desarrollo**. Contraseña para las cuentas demo. No usar en producción. |
-| `ACCESS_TTL` | `900` | segundos de vida del access token |
-| `REFRESH_TTL` | `2592000` | segundos de vida del refresh token |
-| `CONTENIDOS_BASE_URL` | vacío | si está vacío, toda referencia a programa/producto queda `referencia_no_verificada=true` |
-| `CORS_ORIGENES` | `*` | lista separada por comas |
-| `SYNC_PAGINA` | `25` | elementos por página de `/sync` |
-| `DATABASE_URL` | `sqlite:///./albaconecta.db` | URL de conexión SQLAlchemy |
+### Opción A: `adb reverse` (teléfono por USB, **recomendado para desarrollo**)
 
-## Cuentas semilla (solo en desarrollo)
+```bash
+# En la máquina donde corre Docker (host)
+adb reverse tcp:8080 tcp:8080
 
-En desarrollo (`ENTORNO=dev`), si la base de datos está vacía y `DEMO_PASSWORD` está configurado, se crean:
+# Instala y abre la app
+sh gradlew :app:installDebug
+```
 
-| Correo | Rol |
-|---|---|
-| `admin@albaconecta.cl` | ADMIN_CONTENIDOS |
-| `gestor@albaconecta.cl` | GESTOR |
-| `empresa@demo.cl` | EMPRESA |
-| `colaborador@demo.cl` | COLABORADOR |
+`adb reverse` crea un túnel TCP del puerto 8080 del teléfono al puerto 8080 del host. La app ve `http://127.0.0.1:8080` y funciona igual que en emulador.
 
-**En producción (`ENTORNO=prod`) no se crean cuentas automáticamente.** El primer administrador debe crearse mediante un procedimiento controlado (ver sección "Primer administrador en producción").
+### Opción B: IP LAN del host (teléfono en la misma Wi-Fi, **sin USB**)
 
-### Primer administrador en producción
-
-1. Desplegar el backend con `ENTORNO=prod`, `SECRETO` (mín. 32 chars) y `DATABASE_URL` (PostgreSQL).
-2. Ejecutar migraciones (Fase 2+).
-3. Crear el primer usuario `ADMIN_CONTENIDOS` directamente en la base de datos o mediante script administrativo:
-   ```sql
-   INSERT INTO usuario (id, nombre, email, password_hash, tipo, rol, organizacion, activo, fecha_creacion)
-   VALUES ('usr-1', 'Admin Inicial', 'admin@produccion.cl', '<hash_pbkdf2>', 'COLABORADOR', 'ADMIN_CONTENIDOS', NULL, true, NOW());
+1. Averigua la IP LAN de la máquina host:
+   ```bash
+   ip -4 addr show scope global | awk '/inet /{print $2}' | cut -d/ -f1
+   # ej.: 192.168.1.47
    ```
-   El hash se genera con `pbkdf2_sha256$200000$<sal>$<clave>` (ver `identidad/data.py:hashear`).
 
-## Decisiones provisionales que hay que conocer
+2. En `AlbaConecta/app/src/main/java/com/albaconecta/app/data/remote/ApiClient.kt` (o `BuildConfig`), cambia `API_BASE_URL` de debug a:
+   ```kotlin
+   const val API_BASE_URL = "http://192.168.1.47:8080/"
+   ```
+   (reemplaza `192.168.1.47` por tu IP real).
 
-- **Token**: firmado con RS256 (`sub`, `rol`, `exp`) y publicado en `/.well-known/jwks.json`.
-  En desarrollo se genera una clave RSA temporal por proceso; producción exige claves PEM configuradas.
-- **Persistencia**: identidad y solicitudes usan SQLAlchemy; refresh, usuarios, solicitudes,
-  historial e idempotencia sobreviven reinicios sobre SQLite/PostgreSQL. Falta Alembic y separar las cuatro bases.
-- **Hash de contraseña**: `pbkdf2_sha256` de la stdlib; Fase 3 pasa a argon2 (`pwdlib`).
-- **Un rol por usuario** en vez de `usuario_rol` N:M.
-- **`/sync`**: cursor opaco = desplazamiento codificado, no un sello de tiempo.
+3. Recompila e instala:
+   ```bash
+   sh gradlew :app:assembleDebug
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   ```
 
-## Pendiente por fase
+**Notas importantes:**
+- Traefik escucha en `0.0.0.0:8080` (puerto publicado en host). El firewall del host debe permitir entrada en 8080 desde la red LAN.
+- En release la app exige `API_BASE_URL` configurada (vacío → error claro). No uses `10.0.2.2` ni `localhost` en dispositivo físico: no resuelven al host Docker.
+- CORS está configurado con `CORS_ORIGENES=http://localhost:8080` en Compose. Si usas IP LAN, añádela: `CORS_ORIGENES=http://localhost:8080,http://192.168.1.47:8080`.
 
-- Fase 2: SQLAlchemy async + Alembic, CRUD real y `/sync` sobre base de datos.
-- Fase 3: JWT RS256, JWKS real, argon2, `usuario_rol`.
-- Fase 4: tablas de vinculación, idempotencia persistente y llamada HTTP a contenidos.
-- Fase 5: rate limit por IP+email en login, CORS por entorno, pruebas de contrato.
+## Variables de entorno (producción)
+
+| Variable | Requerida | Descripción |
+|---|---|---|
+| `ENTORNO` | sí | `production` (desactiva generación de claves y seed demo) |
+| `SECRETO` | sí | Mín. 32 chars aleatorios; firma compatibilidad HS256 residual |
+| `JWT_PRIVATE_KEY` | sí (identidad) | Ruta a PEM PKCS#8 (`/run/secrets/jwt_private.pem` en Compose) |
+| `JWT_PUBLIC_KEY` | sí | Ruta a PEM SPKI (`/run/secrets/jwt_public.pem` en Compose) |
+| `JWT_KID` | sí | Identificador estable de la clave (ej. `albaconecta-2026-11`) |
+| `DEMO_PASSWORD` | **no** | Solo desarrollo; **nunca** en producción |
+| `CORS_ORIGENES` | sí | Lista separada por comas de orígenes permitidos |
+| `DATABASE_URL_<DOMINIO>` | sí | Una por servicio; inyectada por Compose |
+| `MIGRACION_DOMINIO` | sí | `contenidos`, `vinculacion`, `identidad` o `talento` (entrypoint) |
+| `ACCESS_TTL` / `REFRESH_TTL` | no | Segundos; default 900 / 2592000 |
+
+## Endpoints clave (vía Traefik :8080)
+
+| Servicio | Health live | Health ready | Swagger |
+|---|---|---|---|
+| Contenidos | `/api/v1/contenidos/health/live` | `/api/v1/contenidos/health/ready` | `/api/v1/contenidos/docs` |
+| Vinculación | `/api/v1/vinculacion/health/live` | `/api/v1/vinculacion/health/ready` | `/api/v1/vinculacion/docs` |
+| Identidad | `/api/v1/identidad/health/live` | `/api/v1/identidad/health/ready` | `/api/v1/identidad/docs` |
+| Talento | `/api/v1/talento/health/live` | `/api/v1/talento/health/ready` | `/api/v1/talento/docs` |
+
+JWKS pública: `GET /api/v1/identidad/.well-known/jwks.json`
+
+## Pruebas
+
+```bash
+# Backend (45 pruebas de contrato)
+./.venv/bin/python -m pytest -q
+
+# Concurrencia real (dos hilos, misma Idempotency-Key → un solo folio)
+./.venv/bin/python scripts/verificar_concurrencia_vinculacion.py
+
+# Android
+sh gradlew :app:testDebugUnitTest      # 59 tests unitarios
+sh gradlew :app:assembleDebug          # APK debug
+sh gradlew :app:lintDebug              # Lint limpio
+```
+
+## Decisiones cerradas
+
+- **Persistencia completa**: 4 bases físicas, Alembic con branch labels, migraciones por dominio.
+- **Talento**: catálogo público (candidato, apoyo, candidato_apoyo) en PostgreSQL; puestos/diagnóstico siguen en memoria (MVP).
+- **Auth**: RS256 + JWKS real. Identidad firma con clave privada; consumidores validan con pública.
+- **Idempotencia**: tabla `idempotencia_solicitud` con reserva + confirmación atómica; test de concurrencia pasa.
+- **Traefik**: proveedor estático `file` (evita API Docker antigua), entrypoint interno `:8088`, publicado `:8080`.
+- **Seed**: se inserta una sola vez al estar vacía la tabla (comprobación `select ... limit 1`).
+
+## Solución de problemas
+
+| Síntoma | Causa típica | Solución |
+|---|---|---|
+| Traefik `Exited (1)` | Puerto 8080 ocupado en host | `ss -ltnp | grep :8080` y libera; Compose usa 8080→8088 |
+| `422 Unprocessable Entity` en POST `/solicitudes` | Falta `acepta_privacidad: true` o email/teléfono | Revisa payload contra `SolicitudIn` |
+| `docker compose up` lento primera vez | Descarga imágenes + toolchain Gradle | Normal; segundo arranque usa caché |
+| App Android “Connection refused” | `adb reverse` no ejecutado o IP LAN errónea | Ejecuta `adb reverse tcp:8080 tcp:8080` o corrige `API_BASE_URL` |
+| `lintDebug` falla | SDK 37 no instalado | Verifica `android-37` en Android SDK Manager |
+| `pytest` 0 tests | `DATABASE_URL` apunta a SQLite vacía sin migraciones | Exporta `DATABASE_URL=postgresql://...` o usa Compose |
+
+## Referencias
+
+- OpenAPI exportado: `docs/openapi/{contenidos,vinculacion,identidad,talento}.json`

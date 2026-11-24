@@ -59,13 +59,19 @@ def _crear_claves():
             serialization.PublicFormat.SubjectPublicKeyInfo,
         ).decode()
 
-    if not privada_pem or not publica_pem:
-        raise RuntimeError("JWT_PRIVATE_KEY y JWT_PUBLIC_KEY son obligatorias fuera de desarrollo")
+    if not publica_pem:
+        raise RuntimeError("JWT_PUBLIC_KEY es obligatoria fuera de desarrollo")
 
-    privada = serialization.load_pem_private_key(privada_pem.encode(), password=None)
     publica = serialization.load_pem_public_key(publica_pem.encode())
-    if not isinstance(privada, rsa.RSAPrivateKey) or not isinstance(publica, rsa.RSAPublicKey):
-        raise RuntimeError("Las claves JWT deben ser RSA")
+    if not isinstance(publica, rsa.RSAPublicKey):
+        raise RuntimeError("La clave JWT pública debe ser RSA")
+
+    if privada_pem:
+        privada = serialization.load_pem_private_key(privada_pem.encode(), password=None)
+        if not isinstance(privada, rsa.RSAPrivateKey):
+            raise RuntimeError("La clave JWT privada debe ser RSA")
+    else:
+        privada = None
     return privada, publica
 
 
@@ -73,6 +79,8 @@ _PRIVADA, _PUBLICA = _crear_claves()
 
 
 def _firmar(contenido: str) -> bytes:
+    if _PRIVADA is None:
+        raise RuntimeError("Este servicio no tiene la clave privada JWT")
     return _PRIVADA.sign(contenido.encode(), padding.PKCS1v15(), hashes.SHA256())
 
 

@@ -41,7 +41,10 @@ data class ProfileState(
     val deleteLoading: Boolean = false,
     val deleteSuccess: Boolean = false,
     val biometricEnabled: Boolean = false,
-    val biometricAvailable: Boolean = false
+    val biometricAvailable: Boolean = false,
+    val editing: Boolean = false,
+    val saveLoading: Boolean = false,
+    val saveSuccess: Boolean = false
 )
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
@@ -124,6 +127,67 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+    }
+
+    /** Entra en modo edición (nombre y teléfono). */
+    fun empezarEdicion() {
+        _state.update { it.copy(editing = true, errorMessage = null, saveSuccess = false) }
+    }
+
+    /** Cancela la edición y restaura los valores originales. */
+    fun cancelarEdicion() {
+        val user = _state.value.user
+        val ficha = fichaLocal
+        if (user != null && ficha != null) {
+            _state.update { it.copy(editing = false, errorMessage = null, saveSuccess = false) }
+        }
+    }
+
+    /** Actualiza el nombre en el estado local (solo UI). */
+    fun actualizarNombre(nombre: String) {
+        _state.update { state ->
+            state.user?.let { u ->
+                state.copy(user = u.copy(nombre = nombre.trim()))
+            } ?: state
+        }
+    }
+
+    /** Actualiza el teléfono en el estado local (solo UI). */
+    fun actualizarTelefono(telefono: String) {
+        _state.update { state ->
+            state.user?.let { u ->
+                state.copy(user = u.copy(telefono = telefono.trim()))
+            } ?: state
+        }
+    }
+
+    /** Guarda los cambios en Room (persistencia local). */
+    fun guardarCambios() {
+        val current = _state.value
+        if (current.loading || current.saveLoading || !current.editing || current.user == null || fichaLocal == null) return
+        _state.update { it.copy(saveLoading = true, errorMessage = null, saveSuccess = false) }
+
+        viewModelScope.launch {
+            try {
+                val user = current.user!!
+                val ficha = fichaLocal!!.copy(
+                    nombre = user.nombre.trim(),
+                    telefono = user.telefono.trim()
+                )
+                userRepository.updateUser(ficha)
+                fichaLocal = ficha
+                _state.update { it.copy(saveLoading = false, editing = false, saveSuccess = true, errorMessage = null) }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Exception) {
+                _state.update { it.copy(saveLoading = false, saveSuccess = false, errorMessage = "No se pudieron guardar los cambios. Inténtalo nuevamente.") }
+            }
+        }
+    }
+
+    /** Resetea el flag de éxito (llamado desde UI tras mostrar feedback). */
+    fun resetSaveSuccess() {
+        _state.update { it.copy(saveSuccess = false) }
     }
 
     fun logout() {

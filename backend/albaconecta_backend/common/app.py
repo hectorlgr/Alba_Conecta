@@ -11,7 +11,15 @@ from .http import RequestIdMiddleware, registrar_salud
 def crear_app(titulo: str, router: APIRouter, servicio: str, dominio: str | None = None) -> FastAPI:
     # Solo identidad posee la clave privada; los demás servicios usan la pública.
     validar_configuracion(settings, exige_clave_privada=servicio == "ms-identidad")
-    app = FastAPI(title=titulo, version="1.0.0")
+    # Traefik sólo enruta /api/v1/<dominio>; los docs por defecto (/docs) quedan fuera.
+    prefijo = f"/api/v1/{dominio or servicio.removeprefix('ms-')}"
+    app = FastAPI(
+        title=titulo,
+        version="1.0.0",
+        docs_url=f"{prefijo}/docs",
+        openapi_url=f"{prefijo}/openapi.json",
+        redoc_url=None,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origenes),
