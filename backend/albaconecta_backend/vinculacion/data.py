@@ -46,7 +46,9 @@ def _a_dict(fila) -> dict:
 
 class Almacen:
     def __init__(self) -> None:
-        db.crear_tablas("vinculacion")
+        from ..common.config import settings
+        if settings.entorno.lower() not in ("prod", "produccion", "production"):
+            db.crear_tablas("vinculacion")
 
     def crear(
         self,

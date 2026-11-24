@@ -13,11 +13,12 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from ..common import db
+from ..common.config import settings
 from . import models  # noqa: F401  (registra las tablas en Base.metadata)
 from .models import Categoria, Historia, Indicador, Programa, Producto
 
-db.crear_tablas("contenidos")
-
+if settings.entorno.lower() not in ("prod", "produccion", "production"):
+    db.crear_tablas("contenidos")
 
 def ahora() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
