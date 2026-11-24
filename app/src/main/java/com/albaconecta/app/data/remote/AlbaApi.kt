@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Contrato HTTP con el backend. La baseUrl sale de BuildConfig.API_BASE_URL
- * (debug: gateway de desarrollo en http://127.0.0.1:8000/, con adb reverse).
+ * (debug: gateway de desarrollo en http://127.0.0.1:8080/, con adb reverse).
  */
 interface AlbaApi {
 
@@ -39,6 +39,13 @@ interface AlbaApi {
         @Header("Idempotency-Key") clave: String,
         @Body solicitud: SolicitudDto
     ): Response<SolicitudCreadaDto>
+
+    // --- Vinculación: tipos de colaboración (público) ---
+
+    @GET("api/v1/vinculacion/tipos-colaboracion")
+    suspend fun tiposColaboracion(
+        @Query("solo_activos") soloActivos: Boolean = true
+    ): Response<List<TipoColaboracionDto>>
 
     // --- Contenidos (lectura pública, sin token) ---
 
@@ -59,6 +66,17 @@ interface AlbaApi {
         @Query("page") pagina: Int = 1,
         @Query("limit") limite: Int = 50
     ): Response<PaginaDto<HistoriaDto>>
+
+    // --- Talento (público) ---
+
+    @GET("api/v1/talento/candidatos")
+    suspend fun candidatos(
+        @Query("page") pagina: Int = 1,
+        @Query("limit") limite: Int = 50
+    ): Response<PaginaDto<CandidatoDto>>
+
+    @GET("api/v1/talento/apoyos")
+    suspend fun apoyos(): Response<List<ApoyoDto>>
 
     // --- Identidad ---
 
