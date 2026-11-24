@@ -22,3 +22,13 @@ Instrucciones Evaluacion 2.docx
 AGENTS.md
 Ev. Parcial 2_Estudiante_Encargo_DSY1105.pdf
 Evaluación Parcial 3_Estudiante_Presentación_DSY1105.pdf
+
+# Generado / local: nunca subir
+*.db
+*.db-shm
+*.db-wal
+*.apk
+*.aab
+/app/release/
+/.kotlin/
+/docs/PLAN_UNICO_TERMINAR_BACKEND.md
