@@ -25,8 +25,12 @@ elif DOMINIO == "identidad":
     from albaconecta_backend.common.db import BaseIdentidad
     from albaconecta_backend.identidad import models  # noqa: F401
     BASES[DOMINIO] = BaseIdentidad
+elif DOMINIO == "talento":
+    from albaconecta_backend.common.db import BaseTalento
+    from albaconecta_backend.talento import models  # noqa: F401
+    BASES[DOMINIO] = BaseTalento
 else:
-    raise RuntimeError("MIGRACION_DOMINIO debe ser contenidos, vinculacion o identidad")
+    raise RuntimeError("MIGRACION_DOMINIO debe ser contenidos, vinculacion, identidad o talento")
 
 config.set_main_option("sqlalchemy.url", url_base_datos(Settings(), DOMINIO).replace("%", "%%"))
 target_metadata = BASES[DOMINIO].metadata

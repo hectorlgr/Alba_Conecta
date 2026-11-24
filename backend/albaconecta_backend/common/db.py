@@ -35,6 +35,10 @@ class BaseIdentidad(DeclarativeBase):
     pass
 
 
+class BaseTalento(DeclarativeBase):
+    pass
+
+
 _engines = {}
 _fabricas = {}
 
@@ -76,6 +80,7 @@ def crear_tablas(dominio: str, settings_obj=None) -> None:
         "contenidos": BaseContenidos,
         "vinculacion": BaseVinculacion,
         "identidad": BaseIdentidad,
+        "talento": BaseTalento,
     }
     if dominio not in bases:
         raise RuntimeError(f"El dominio {dominio} no tiene tablas SQL declaradas")

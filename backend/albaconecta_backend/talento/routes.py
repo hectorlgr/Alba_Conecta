@@ -9,7 +9,7 @@ from ..common.http import Limite as LimiteQ
 from ..common.http import Pagina as PaginaQ
 from ..common.http import paginar
 from ..common.security import requiere
-from .data import APOYOS, almacen
+from .data import almacen, apoyos_publicos, candidatos_publicos
 from .schemas import (
     ApoyoOut,
     CandidatoOmitido,
@@ -30,13 +30,13 @@ EMPRESA = Annotated[dict, Depends(requiere("EMPRESA"))]
 
 @router.get("/candidatos", response_model=Pagina[CandidatoOut])
 async def listar_candidatos(page: PaginaQ = 1, limit: LimiteQ = 20):
-    items = sorted(almacen.candidatos_publicos(), key=lambda c: c["codigo_publico"])
+    items = candidatos_publicos()
     return paginar(items, page, limit)
 
 
 @router.get("/candidatos/{codigo_publico}", response_model=CandidatoOut)
 async def detalle_candidato(codigo_publico: str):
-    candidato = almacen.candidatos.get(codigo_publico)
+    candidato = next((c for c in candidatos_publicos() if c["codigo_publico"] == codigo_publico), None)
     if candidato is None or not candidato["publicado"] or candidato["eliminado"]:
         raise ApiError(404, "NO_ENCONTRADO", "El candidato no existe o no está publicado.")
     return candidato
@@ -44,7 +44,7 @@ async def detalle_candidato(codigo_publico: str):
 
 @router.get("/apoyos", response_model=list[ApoyoOut])
 async def listar_apoyos():
-    return APOYOS
+    return apoyos_publicos()
 
 
 def _puesto_propio(id_: str, empresa: dict) -> dict:
@@ -80,7 +80,7 @@ async def compatibilidad(id_: str, empresa: EMPRESA):
 
     resultados: list[dict] = []
     omitidos: list[dict] = []
-    for candidato in almacen.candidatos_publicos():
+    for candidato in candidatos_publicos():
         declarados = set(candidato["apoyos"])
         if not declarados:
             omitidos.append({"codigo_publico": candidato["codigo_publico"], "motivo": "Sin apoyos declarados."})
@@ -107,7 +107,7 @@ async def compatibilidad(id_: str, empresa: EMPRESA):
 
 @router.post("/diagnostico", status_code=201, response_model=DiagnosticoOut)
 async def crear_diagnostico(datos: DiagnosticoIn):
-    catalogo = {apoyo["codigo"]: apoyo for apoyo in APOYOS}
+    catalogo = {apoyo["codigo"]: apoyo for apoyo in apoyos_publicos()}
     desconocidos = [codigo for codigo in datos.apoyos_interes if codigo not in catalogo]
     if desconocidos:
         raise ApiError(
@@ -132,7 +132,7 @@ async def detalle_diagnostico(id_: str):
     diagnostico = almacen.diagnosticos.get(id_)
     if diagnostico is None:
         raise ApiError(404, "NO_ENCONTRADO", f"No existe el diagnóstico {id_}.")
-    catalogo = {apoyo["codigo"]: apoyo for apoyo in APOYOS}
+    catalogo = {apoyo["codigo"]: apoyo for apoyo in apoyos_publicos()}
     sugerencias = [
         f"{catalogo[codigo]['nombre']}: {catalogo[codigo]['descripcion']}"
         for codigo in diagnostico["apoyos_interes"]
