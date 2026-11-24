@@ -1,9 +1,12 @@
 package com.albaconecta.app.ui.components
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -15,7 +18,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -27,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.albaconecta.app.R
 import com.albaconecta.app.navigation.Routes
+import com.albaconecta.app.util.avisoRed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,31 +41,46 @@ fun MainScaffold(
     onDestinationClick: (String) -> Unit,
     accountActionLabel: String?,
     onAccountClick: () -> Unit,
+    enLinea: Boolean,
+    pendientes: Int,
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    // Encabezado de marca: isotipo CORPALIV + nombre de la app
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(R.drawable.corpaliv_isotipo),
-                            // Icono decorativo: el texto "Alba Conecta" ya describe la marca
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Alba Conecta")
+            Column {
+                TopAppBar(
+                    title = {
+                        // Encabezado de marca: isotipo CORPALIV + nombre de la app
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(R.drawable.corpaliv_isotipo),
+                                // Icono decorativo: el texto "Alba Conecta" ya describe la marca
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Alba Conecta")
+                        }
+                    },
+                    actions = {
+                        accountActionLabel?.let { label ->
+                            TextButton(onClick = onAccountClick) { Text(label) }
+                        }
                     }
-                },
-                actions = {
-                    accountActionLabel?.let { label ->
-                        TextButton(onClick = onAccountClick) { Text(label) }
+                )
+                // Aviso global: sin red se muestran datos guardados y se cuenta la cola outbox.
+                avisoRed(enLinea, pendientes)?.let { aviso ->
+                    Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+                        Text(
+                            text = aviso,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     }
                 }
-            )
+            }
         },
         bottomBar = {
             NavigationBar {

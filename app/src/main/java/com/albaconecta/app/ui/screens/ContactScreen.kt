@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +58,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.albaconecta.app.data.remote.TipoColaboracionDto
 import com.albaconecta.app.ui.components.AnimatedEntrance
 import com.albaconecta.app.ui.components.ErrorStateIcon
 import com.albaconecta.app.ui.components.PulsableButton
@@ -76,6 +78,8 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
     val form by contactViewModel.formState.collectAsStateWithLifecycle()
     val errors by contactViewModel.errors.collectAsStateWithLifecycle()
     val submitState by contactViewModel.submitState.collectAsStateWithLifecycle()
+    val tiposColaboracion by contactViewModel.tiposColaboracion.collectAsStateWithLifecycle()
+    val tiposLoading by contactViewModel.tiposLoading.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
     var speechError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -243,6 +247,7 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
             releaseSpeech()
         }
     }
+
     val formattedDate = remember(form.fechaContacto) {
         form.fechaContacto?.let {
             SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
@@ -250,9 +255,15 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
             }.format(Date(it))
         }.orEmpty()
     }
+    val scrollState = rememberScrollState()
+
+    // El mensaje de confirmación está arriba: al aparecer (o llegar el folio), volvemos al inicio.
+    LaunchedEffect(submitState.success, submitState.folio) {
+        if (submitState.success) scrollState.animateScrollTo(0)
+    }
 
     Column(
-        modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxSize().imePadding().verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         AnimatedEntrance {
@@ -270,8 +281,9 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            "Recibimos tu solicitud. Guarda tu folio para consultar el avance: " +
-                                (submitState.folio ?: "—"),
+                            submitState.folio?.let {
+                                "Recibimos tu solicitud. Guarda tu folio para consultar el avance: $it"
+                            } ?: "Recibimos tu solicitud. El folio aparecerá aquí cuando se confirme el envío.",
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -383,13 +395,34 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                     Text("Tomar foto")
                 }
                 if (form.fotoPath != null) {
-                    Text("Foto adjunta")
+                    Text("Foto adjunta ✓", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                     TextButton(onClick = {
                         CameraUriFactory.delete(form.fotoPath)
                         contactViewModel.updateFoto(null)
                     }) { Text("Quitar foto") }
                 }
                 cameraError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+                // Tipo de colaboración (valor seleccionado, editable desde backend)
+                AnimatedVisibility(visible = tiposColaboracion.isNotEmpty() || tiposLoading) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Tipo de colaboración", style = MaterialTheme.typography.titleMedium)
+                        if (tiposLoading) {
+                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        } else {
+                            val selectedTipo = tiposColaboracion.find { it.codigo == form.tipoColaboracionCodigo }
+                                ?: tiposColaboracion.firstOrNull()
+                            OutlinedTextField(
+                                value = selectedTipo?.nombre ?: "Seleccionar...",
+                                onValueChange = {},
+                                label = { Text("Tipo de colaboración") },
+                                modifier = Modifier.fillMaxWidth(),
+                                readOnly = true,
+                                supportingText = { Text("Se usa el valor por defecto del formulario") }
+                            )
+                        }
+                    }
+                }
             }
         }
         AnimatedEntrance(delayMillis = 240) {
@@ -441,10 +474,20 @@ fun ContactScreen(contactViewModel: ContactViewModel = viewModel()) {
                 submitState.error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
+                // En el flujo outbox `enviando` nunca es true: el estado real es `encolada`.
+                val nuevaSolicitud = submitState.encolada && submitState.success
                 PulsableButton(
-                    onClick = contactViewModel::submit,
-                    text = if (submitState.enviando) "Enviando…" else "Enviar solicitud",
-                    enabled = !submitState.enviando,
+                    onClick = {
+                        if (nuevaSolicitud) contactViewModel.descartarFormulario()
+                        else contactViewModel.submit()
+                    },
+                    text = when {
+                        submitState.enviando -> "Enviando…"
+                        nuevaSolicitud -> "Enviar otra solicitud"
+                        submitState.encolada -> "Enviando en segundo plano…"
+                        else -> "Enviar solicitud"
+                    },
+                    enabled = !submitState.enviando && (!submitState.encolada || nuevaSolicitud),
                     modifier = Modifier.fillMaxWidth()
                 )
             }

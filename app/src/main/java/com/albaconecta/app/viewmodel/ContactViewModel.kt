@@ -1,21 +1,27 @@
 package com.albaconecta.app.viewmodel
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.albaconecta.app.data.local.AlbaDatabase
 import com.albaconecta.app.data.remote.DetalleDto
 import com.albaconecta.app.data.remote.SolicitudDto
+import com.albaconecta.app.data.remote.TipoColaboracionDto
 import com.albaconecta.app.data.repository.ResultadoEnvio
 import com.albaconecta.app.data.repository.SolicitudRepository
+import com.albaconecta.app.data.repository.TipoColaboracionRepository
+import com.albaconecta.app.util.CameraUriFactory
 import com.albaconecta.app.validation.ContactValidator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,6 +37,8 @@ data class ContactFormState(
     val cantidadTrabajadores: Int? = null,
     val fechaContacto: Long? = null,
     val autorizaContacto: Boolean = false,
+    // Tipo de colaboración seleccionado (código del backend). Default "OTRO" para compatibilidad.
+    val tipoColaboracionCodigo: String = "OTRO",
     // Ruta absoluta del adjunto en filesDir. Es parte del formulario para que el
     // envío (hoy local, mañana POST /solicitudes) no dependa de un estado de la pantalla.
     val fotoPath: String? = null
@@ -50,12 +58,15 @@ data class ContactSubmitState(
     val success: Boolean = false,
     val enviando: Boolean = false,
     val folio: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val encolada: Boolean = false
 )
 
-class ContactViewModel(
-    private val solicitudRepository: SolicitudRepository = SolicitudRepository()
-) : ViewModel() {
+class ContactViewModel(application: Application) : AndroidViewModel(application) {
+    private val database = AlbaDatabase.getInstance(application)
+    private val solicitudRepository = SolicitudRepository(database)
+    private val tipoColaboracionRepository = TipoColaboracionRepository()
+
     private val _formState = MutableStateFlow(ContactFormState())
     val formState: StateFlow<ContactFormState> = _formState.asStateFlow()
     private val _errors = MutableStateFlow(ContactErrors())
@@ -63,14 +74,49 @@ class ContactViewModel(
     private val _submitState = MutableStateFlow(ContactSubmitState())
     val submitState: StateFlow<ContactSubmitState> = _submitState.asStateFlow()
 
+    // Tipos de colaboración desde el backend
+    private val _tiposColaboracion = MutableStateFlow<List<TipoColaboracionDto>>(emptyList())
+    val tiposColaboracion: StateFlow<List<TipoColaboracionDto>> = _tiposColaboracion.asStateFlow()
+    private val _tiposLoading = MutableStateFlow(false)
+    val tiposLoading: StateFlow<Boolean> = _tiposLoading.asStateFlow()
+
     // Clave de idempotencia para el envío actual. Se genera al iniciar el envío
     // y se reutiliza en reintentos. Se regenera solo tras éxito o descarte explícito.
     private var _claveIdempotencia: String? = null
+    // Observador del folio de la solicitud actual; se cancela si se envía otra.
+    private var folioJob: Job? = null
+
+    init {
+        // Encolar worker periódico al iniciar
+        com.albaconecta.app.data.local.OutboxWorker.Companion.enqueuePeriodic(application)
+        cargarTiposColaboracion()
+    }
+
+    /** Carga los tipos de colaboración desde el backend (una sola vez). */
+    private fun cargarTiposColaboracion() {
+        if (_tiposColaboracion.value.isNotEmpty()) return
+        _tiposLoading.value = true
+        viewModelScope.launch {
+            try {
+                val tipos = tipoColaboracionRepository.obtener()
+                _tiposColaboracion.value = tipos
+            } catch (_: Exception) {
+                // Silencioso: se usa "OTRO" como fallback
+            } finally {
+                _tiposLoading.value = false
+            }
+        }
+    }
+
+    /** Actualiza el tipo de colaboración seleccionado. */
+    fun updateTipoColaboracion(codigo: String) {
+        edit { it.copy(tipoColaboracionCodigo = codigo) }
+    }
 
     private fun edit(transform: (ContactFormState) -> ContactFormState) {
         // No se descarta el estado de envío mientras hay una solicitud en vuelo: si no, el
         // botón volvería a habilitarse y un segundo toque crearía otra solicitud.
-        if (!_submitState.value.enviando) _submitState.value = ContactSubmitState()
+        if (!_submitState.value.enviando && !_submitState.value.encolada) _submitState.value = ContactSubmitState()
         _formState.update(transform)
     }
 
@@ -154,7 +200,8 @@ class ContactViewModel(
 
     fun submit() {
         // Doble toque = dos claves de idempotencia distintas = dos solicitudes reales.
-        if (_submitState.value.enviando) return
+        if (_submitState.value.enviando || _submitState.value.encolada) return
+        folioJob?.cancel()
 
         val result = ContactValidator.validate(_formState.value)
         _errors.value = result
@@ -164,7 +211,7 @@ class ContactViewModel(
         }
 
         val form = _formState.value
-        _submitState.value = ContactSubmitState(enviando = true)
+        _submitState.value = ContactSubmitState(encolada = true)
         
         // Generar clave de idempotencia si no existe (primer envío) o reutilizar (reintento)
         if (_claveIdempotencia == null) {
@@ -174,19 +221,35 @@ class ContactViewModel(
 
         viewModelScope.launch {
             when (val resultado = solicitudRepository.crear(aSolicitud(form), clave)) {
+                is ResultadoEnvio.Encolada -> {
+                    // Guardada en outbox: Worker la enviará en background
+                    borrarFotoTemporal(form.fotoPath)
+                    _formState.value = ContactFormState()
+                    _errors.value = ContactErrors()
+                    _submitState.value = ContactSubmitState(encolada = true, success = true)
+                    _claveIdempotencia = null // Nueva clave para próxima solicitud
+                    // El folio lo emite el backend: disparamos el Worker ya y observamos la BD hasta que llegue.
+                    com.albaconecta.app.data.local.OutboxWorker.enqueueNow(getApplication())
+                    folioJob = viewModelScope.launch {
+                        database.solicitudOutboxDao().observarFolio(clave)
+                            .filterNotNull()
+                            .firstOrNull()
+                            ?.let { folio -> _submitState.update { it.copy(folio = folio) } }
+                    }
+                }
                 is ResultadoEnvio.Exito -> {
-                    // Éxito: borrar foto temporal, limpiar formulario, resetear errores y generar NUEVA clave
+                    // Ya estaba enviada (reintento con misma clave)
                     borrarFotoTemporal(form.fotoPath)
                     _formState.value = ContactFormState()
                     _errors.value = ContactErrors()
                     _submitState.value = ContactSubmitState(success = true, folio = resultado.folio)
-                    _claveIdempotencia = null // Nueva clave para próxima solicitud
+                    _claveIdempotencia = null
                 }
                 is ResultadoEnvio.Fallo -> {
-                    // Fallo: NO limpiar formulario ni clave. Permitir reintento con la misma clave.
+                    // Fallo no reintentable (ej. 409 payload distinto): permitir descarte
                     _errors.value = erroresDelServidor(resultado.campos)
                     _submitState.value = ContactSubmitState(error = resultado.mensaje)
-                    // _claveIdempotencia se mantiene para reintento
+                    // _claveIdempotencia se mantiene para que el usuario vea el error y descarte
                 }
             }
         }
@@ -194,6 +257,7 @@ class ContactViewModel(
 
     /** Descarta el formulario actual y genera una nueva clave para la próxima solicitud. */
     fun descartarFormulario() {
+        folioJob?.cancel() // evita que un folio tardío aparezca en el formulario nuevo
         _formState.value = ContactFormState()
         _errors.value = ContactErrors()
         _submitState.value = ContactSubmitState()
@@ -208,7 +272,7 @@ class ContactViewModel(
         if (path.isNullOrBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                File(path).delete()
+                CameraUriFactory.delete(path)
             } catch (_: Exception) {
                 // Best effort: si no se puede borrar, no es crítico
             }
@@ -218,7 +282,7 @@ class ContactViewModel(
     /**
      * Formulario → contrato del API. El backend no tiene campos para "representa empresa",
      * cantidad de trabajadores ni fecha preferida: viajan como texto en el detalle.
-     * El tipo de colaboración queda fijo en OTRO hasta que el formulario tenga selector.
+     * El tipo de colaboración se toma del selector (cargado desde el backend).
      */
     private fun aSolicitud(form: ContactFormState) = SolicitudDto(
         nombreContacto = form.nombre.trim(),
@@ -228,7 +292,7 @@ class ContactViewModel(
         aceptaPrivacidad = form.autorizaContacto,
         detalles = listOf(
             DetalleDto(
-                tipoColaboracionCodigo = "OTRO",
+                tipoColaboracionCodigo = form.tipoColaboracionCodigo,
                 descripcion = descripcion(form).take(500) // máximo del contrato
             )
         )

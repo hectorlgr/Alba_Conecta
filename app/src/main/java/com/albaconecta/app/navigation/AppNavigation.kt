@@ -32,6 +32,8 @@ fun AppNavigation(
     startDestination: String,
     sessionLoading: Boolean,
     isAuthenticated: Boolean,
+    enLinea: Boolean,
+    pendientes: Int,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -78,6 +80,8 @@ fun AppNavigation(
                         isAuthenticated -> "Perfil"
                         else -> "Iniciar sesión"
                     },
+                    enLinea = enLinea,
+                    pendientes = pendientes,
                     onAccountClick = {
                         val destination = if (isAuthenticated) Routes.PROFILE else Routes.LOGIN
                         navController.navigate(destination) { launchSingleTop = true }

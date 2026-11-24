@@ -21,12 +21,14 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // El host se define al iniciar el build: ALBA_HOST_IP=<IP del notebook>.
+    val ipHost = providers.environmentVariable("ALBA_HOST_IP").orNull
+        ?: error("Define ALBA_HOST_IP=<IP del host> antes de compilar la app")
+
     buildTypes {
         debug {
-            // 127.0.0.1 + `adb reverse tcp:8000 tcp:8000`: funciona igual en emulador y en
-            // teléfono físico por USB. (10.0.2.2 falla en AVD con wlan0 activo, que sale por
-            // una red virtual distinta de la de eth0.)
-            buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:8000/\"")
+            // 127.0.0.1 sería la propia tablet; con IP LAN no hace falta adb reverse.
+            buildConfigField("String", "API_BASE_URL", "\"http://$ipHost:8080/\"")
         }
         release {
             // Pendiente: host real cuando exista el backend desplegado.
@@ -88,6 +90,9 @@ dependencies {
 
     // Biometric (bonus: login con huella)
     implementation(libs.androidx.biometric)
+
+    // WorkManager para outbox offline
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Red: cliente HTTP contra el backend FastAPI
     implementation(libs.retrofit)
