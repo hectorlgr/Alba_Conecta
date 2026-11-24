@@ -73,6 +73,10 @@ Puntos que no son obvios:
 
 ## 1. Backend
 
+Los comandos de **Docker son idénticos** en Windows y Linux. Lo que cambia es preparar el entorno del host. Ejecuta todo desde `AlbaConecta/backend` (los volúmenes `./secrets/...` del Compose son relativos a ese directorio). Requiere Docker Desktop en Windows o Docker Engine + Compose en Linux.
+
+### 1.1. Linux / macOS (bash)
+
 ```bash
 cd "AlbaConecta/backend"
 
@@ -84,7 +88,7 @@ openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
 # Copia el ejemplo y ajusta SECRETO, DEMO_PASSWORD y JWT_KID
 cp .env.example .env
 
-# Opcional: limpieza total antes de levantar
+# Opcional y DESTRUCTIVO: borra los volúmenes (las 4 bases) antes de levantar
 docker compose down -v --rmi local
 docker compose up -d --build
 
@@ -93,18 +97,66 @@ for u in contenidos vinculacion identidad talento; do
   curl -sS "http://127.0.0.1:8080/api/v1/$u/health/live"
 done
 
-# Pruebas de contrato (45) y concurrencia real
+# Pruebas de contrato (45) y concurrencia real, desde el contenedor o el venv local
+docker compose exec -T ms-talento python -m pytest -q
 ./.venv/bin/python -m pytest -q
 ./.venv/bin/python scripts/verificar_concurrencia_vinculacion.py
 ```
 
-Alternativa rápida sin Docker: `uvicorn albaconecta_backend.gateway:app --port 8000` usa SQLite por defecto (`backend/albaconecta.db`). El código de debug de la app apunta a `:8080`; para usar el gateway cambia `API_BASE_URL` en `app/build.gradle.kts`.
+### 1.2. Windows (PowerShell)
+
+```powershell
+cd "AlbaConecta\backend"
+
+# Claves RSA: openssl no viene en PowerShell; usa Git Bash (Git for Windows) o WSL
+mkdir secrets
+openssl genrsa -out secrets/jwt_private.pem 2048
+openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
+
+# Copia el ejemplo y ajusta SECRETO, DEMO_PASSWORD y JWT_KID con tu editor
+Copy-Item .env.example .env
+notepad .env
+
+# Levantar (idéntico a Linux)
+docker compose up -d --build
+
+# Salud de los cuatro servicios: en PowerShell 'curl' es un alias y no hay jq
+foreach ($u in @('contenidos','vinculacion','identidad','talento')) {
+  Write-Host "[$u]"
+  Invoke-RestMethod "http://127.0.0.1:8080/api/v1/$u/health/live" | ConvertTo-Json
+}
+
+# Pruebas desde el contenedor (no depende del Python instalado en Windows)
+docker compose exec -T ms-talento python -m pytest -q
+docker compose exec -T ms-talento python scripts/verificar_concurrencia_vinculacion.py
+# Desde el venv local: .\.venv\Scripts\python.exe -m pytest -q
+```
+
+> Si tienes Git Bash, puedes usar tal cual los comandos de la sección 1.1 en Windows. `docker compose logs -f`, `ps` y `down` funcionan igual en ambos sistemas; `down -v` borra las 4 bases.
+
+### 1.3. Sin Docker (gateway de un proceso, :8000)
+
+Usa SQLite por defecto (`backend/albaconecta.db`):
+
+```bash
+# Linux/macOS
+cd "AlbaConecta/backend"
+./.venv/bin/python -m uvicorn albaconecta_backend.gateway:app --port 8000
+```
+
+```powershell
+# Windows
+cd "AlbaConecta\backend"
+.\.venv\Scripts\python.exe -m uvicorn albaconecta_backend.gateway:app --port 8000
+```
+
+La app debug apunta a `:8080` (Traefik). Para usar el gateway en `:8000`, cambia el puerto en `BuildConfig.API_BASE_URL` en `app/build.gradle.kts` y recompila.
 
 ## 2. Conectar la app
 
 El debug ya **no** usa `127.0.0.1` ni `adb reverse`: `app/build.gradle.kts` lee la variable de entorno **`ALBA_HOST_IP`** y la escribe en `API_BASE_URL` (`http://<IP>:8080/`). Sin esa variable cualquier comando Gradle falla con `Define ALBA_HOST_IP=<IP del host> antes de compilar la app`.
 
-El dispositivo/emulador debe estar en la **misma Wi-Fi/red** que el host y el backend escucha en `:8080` (Traefik publica el puerto en todas las interfaces de Docker).
+El dispositivo/emulador debe estar en la **misma Wi-Fi/red** que el host y el backend escucha en `:8080` (Traefik publica el puerto en todas las interfaces de Docker). Abre ese puerto en el firewall: `sudo ufw allow 8080/tcp` en Linux, o una regla de entrada TCP 8080 en Windows Defender.
 
 ### 2.1. Obtener la IP del host
 
@@ -145,13 +197,25 @@ sh gradlew :app:installDebug
 
 Con `ALBA_HOST_IP` ya definido (§2.3):
 
+**Linux/macOS:**
+
 ```bash
 cd "AlbaConecta"
+export ALBA_HOST_IP="192.168.1.10"
 sh gradlew --offline :app:testDebugUnitTest :app:assembleDebug   # 59 tests, 0 fallos
 sh gradlew :app:lintDebug
 ```
 
-En Windows, los mismos comandos con `.\gradlew.bat`. `--offline` sirve para tests y `assembleDebug`, pero no para `lintDebug` ni `assembleRelease`.
+**Windows (PowerShell):**
+
+```powershell
+cd "AlbaConecta"
+$env:ALBA_HOST_IP = "192.168.1.10"
+.\gradlew.bat --offline :app:testDebugUnitTest :app:assembleDebug
+.\gradlew.bat :app:lintDebug
+```
+
+`--offline` sirve para tests y `assembleDebug`, pero no para `lintDebug` ni `assembleRelease`. En Windows uses `gradlew.bat` porque `gradlew` no tiene permiso de ejecución.
 
 ## 4. Probar el modo offline (formulario → Room → envío automático)
 
@@ -170,6 +234,8 @@ En Windows, los mismos comandos con `.\gradlew.bat`. `--offline` sirve para test
    sqlite3 /tmp/alba_offline/alba_database \
      "select id, idempotencyKey, estado, intentos, folioRemoto from solicitudes_outbox order by id desc limit 3;"
    ```
+
+   En Windows, crea la carpeta con `New-Item -ItemType Directory -Force "$env:TEMP\alba_offline"` y guarda los tres archivos ahí; `sqlite3` debe estar en el PATH (o abre la BD con DB Browser for SQLite).
 
    Estado esperado: `FALLIDA` (o `ENVIANDO` si lo miras en el instante), `folioRemoto` nulo y la misma `idempotencyKey`.
 5. Restaura primero el túnel y después la red:
